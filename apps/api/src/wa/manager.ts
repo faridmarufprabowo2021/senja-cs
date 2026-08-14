@@ -513,7 +513,7 @@ class WaManager {
     hub.toTenant(tenantId, "message.created", mapMessage(message));
     hub.toTenant(tenantId, "conversation.updated", mapConversation(full));
 
-    if (!body) return;
+    if (!messageBody) return;
 
     const settings = await prisma.botSettings.findUnique({
       where: { tenantId },

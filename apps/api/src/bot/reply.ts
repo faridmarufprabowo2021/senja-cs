@@ -69,6 +69,8 @@ export async function runBotReply(conversationId: string) {
     .reverse()
     .find((m) => m.direction === "in" && m.senderType === "customer");
   if (!lastIn) return;
+  const lastInMeta = (lastIn.metadata as Record<string, any>) || {};
+  const effectiveUserText = (lastInMeta.transcript || lastInMeta.imageAnalysis || lastIn.body || "").trim();
 
   const alreadyReplied = chronological.some(
     (m) =>
@@ -78,7 +80,7 @@ export async function runBotReply(conversationId: string) {
   if (alreadyReplied) return;
 
   // Execute active ConversationFlow if defined
-  const flowResult = await runFlowForConversation(conversation.id, lastIn.body);
+  const flowResult = await runFlowForConversation(conversation.id, effectiveUserText);
   if (flowResult.handled) {
     return;
   }
@@ -133,13 +135,13 @@ export async function runBotReply(conversationId: string) {
   }
 
   // 2. AI Orchestrator Intent Match if multiple agents exist
-  const userMessageText = lastIn.body.trim();
+  const userMessageText = effectiveUserText;
   if (!activeAgent && allActiveAgents.length > 1) {
     const lower = userMessageText.toLowerCase();
     activeAgent = allActiveAgents.find((a) => {
       const descMatch =
         a.description &&
-        lower.split(" ").some((word) => word.length > 3 && a.description.toLowerCase().includes(word));
+        lower.split(" ").some((word: string) => word.length > 3 && a.description.toLowerCase().includes(word));
       const kwMatch =
         a.handoverKeywords &&
         a.handoverKeywords.some((kw) => lower.includes(kw.toLowerCase()));
@@ -164,9 +166,7 @@ export async function runBotReply(conversationId: string) {
   const systemPromptToUse = activeAgent?.systemPrompt || settings.systemPrompt;
   const transferConditionsToUse = activeAgent?.transferConditions || null;
 
-  const lastInMeta = (lastIn.metadata as Record<string, any>) || {};
-  const effectiveUserText = lastInMeta.transcript || lastInMeta.imageAnalysis || lastIn.body;
-  const body = effectiveUserText.trim();
+  const body = effectiveUserText;
   const kw = matchHandoverKeyword(body, handoverKeywordsToUse);
   if (kw) {
     await escalate(
