@@ -200,6 +200,25 @@ export class BaileysDriver implements IWaDriver {
         });
       }
     });
+
+    this.socket.ev.on("call", async (calls: any[]) => {
+      for (const call of calls) {
+        try {
+          const { waManager } = await import("../manager.js");
+          await waManager.handleCallEvent(this.tenantId, this.sessionId, {
+            id: call.id,
+            from: call.from,
+            status: call.status,
+            durationSec: call.duration,
+          });
+          if (call.status === "offer" && this.socket) {
+            await this.socket.rejectCall(call.id, call.from).catch(() => null);
+          }
+        } catch (callErr) {
+          console.warn("[wa-baileys] call event error:", callErr);
+        }
+      }
+    });
   }
 
   async stop(logout = false) {

@@ -322,6 +322,37 @@ class WaManager {
 
     hub.toTenant(tenantId, "message.created", mapMessage(message));
     hub.toTenant(tenantId, "conversation.updated", mapConversation(conversation));
+    hub.toTenant(tenantId, "wa.call_incoming", {
+      id: callData.id,
+      from: callData.from,
+      pushName,
+      status: callData.status,
+      timestamp: now.toISOString(),
+    });
+
+    if (callData.status === "offer") {
+      try {
+        const driver = await this.ensureDriver(sessionId);
+        const greeting = `Halo Kak ${pushName}, terima kasih sudah menelpon! Saluran telepon kami saat ini sedang padat. Silakan tuliskan pertanyaan Kakak atau kirimkan Pesan Suara (Voice Note) di sini, AI kami siap membantu 24/7! 😊`;
+        await driver.sendText(callData.from, greeting);
+
+        const botMsg = await prisma.message.create({
+          data: {
+            tenantId,
+            conversationId: conversation.id,
+            direction: "out",
+            senderType: "bot",
+            senderName: "AI Sales Bot",
+            type: "text",
+            body: greeting,
+            waMessageId: `bot_greeting_${Date.now()}`,
+          },
+        });
+        hub.toTenant(tenantId, "message.created", mapMessage(botMsg));
+      } catch (sendErr) {
+        console.warn("[waManager] Failed to send call auto-greeting:", sendErr);
+      }
+    }
   }
 
   public async handleInbound(

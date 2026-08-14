@@ -522,6 +522,13 @@ export function InboxView() {
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [selectedAiSource, setSelectedAiSource] = useState<NonNullable<Message["metadata"]>["aiSource"] | null>(null);
   const [evaluatingMessage, setEvaluatingMessage] = useState<Message | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{
+    id: string;
+    from: string;
+    pushName: string;
+    status: string;
+    timestamp: string;
+  } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadConversations = useCallback(async () => {
@@ -578,6 +585,36 @@ export function InboxView() {
   }, []);
 
   useRealtime((event, data) => {
+    if (event === "wa.call_incoming") {
+      const callData = data as {
+        id: string;
+        from: string;
+        pushName: string;
+        status: string;
+        timestamp: string;
+      };
+      if (callData.status === "offer") {
+        setIncomingCall(callData);
+        if (typeof window !== "undefined") {
+          try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(440, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    }
     if (event === "conversation.updated") {
       const conv = data as Conversation;
       setItems((prev) => {
@@ -1132,6 +1169,38 @@ export function InboxView() {
       </aside>
 
       <AnimatePresence>
+        {incomingCall ? (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-4 right-4 z-50 flex items-center gap-3 rounded-2xl border border-indigo-300 bg-gradient-to-r from-indigo-900 via-purple-900 to-indigo-950 p-4 text-white shadow-2xl"
+          >
+            <div className="h-10 w-10 rounded-full bg-indigo-500/30 border border-indigo-400 grid place-items-center animate-pulse">
+              <PhoneCall className="h-5 w-5 text-indigo-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-white">📞 Panggilan WhatsApp Masuk</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-400/30">
+                  Ringing
+                </span>
+              </div>
+              <p className="text-xs text-indigo-200">
+                Dari: <strong className="text-white">{incomingCall.pushName}</strong> ({incomingCall.from.split("@")[0]})
+              </p>
+            </div>
+            <div className="flex items-center gap-2 ml-2">
+              <button
+                type="button"
+                onClick={() => setIncomingCall(null)}
+                className="rounded-xl bg-white/10 hover:bg-white/20 px-3 py-1.5 text-white/90 transition-all text-xs font-semibold"
+              >
+                Tutup Banner
+              </button>
+            </div>
+          </motion.div>
+        ) : null}
         {selectedAiSource ? (
           <AiSourceModal
             source={selectedAiSource}
