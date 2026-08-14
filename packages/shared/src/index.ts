@@ -13,7 +13,7 @@ export type MessageDirection = "in" | "out";
 
 export type SenderType = "customer" | "bot" | "agent" | "system";
 
-export type MessageType = "text" | "image" | "audio" | "document" | "system";
+export type MessageType = "text" | "image" | "audio" | "document" | "call_summary" | "system";
 
 export type WaEngineType = "baileys" | "openwa";
 
@@ -100,6 +100,13 @@ export interface Message {
     fileName?: string;
     transcript?: string;
     imageAnalysis?: string;
+    callSummary?: {
+      durationSec?: number;
+      summary: string;
+      keyTakeaways: string[];
+      actionItems: string[];
+      isMissedCall?: boolean;
+    };
     tool?: string;
     away?: boolean;
   };
