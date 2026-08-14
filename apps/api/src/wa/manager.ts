@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
+import { downloadMediaMessage } from "sanka-baileyss";
+import { env } from "../lib/env.js";
 import { prisma } from "../lib/prisma.js";
 import { hub } from "../ws/hub.js";
 import { mapMessage, mapConversation } from "../lib/mappers.js";
@@ -371,6 +375,54 @@ class WaManager {
     let preview =
       body ||
       (msgType === "image" ? "[gambar]" : msgType === "document" ? "[dokumen]" : msgType === "audio" ? "[pesan suara]" : "[media]");
+
+    // Download media buffer for audio (voice note), image, or document
+    if (hasAudio || hasImage || hasDoc) {
+      try {
+        const mediaBuffer = await downloadMediaMessage(
+          msg,
+          "buffer",
+          {},
+        ).catch((err) => {
+          console.warn("[waManager] Error downloading media from Baileys:", err);
+          return null;
+        });
+
+        if (mediaBuffer && mediaBuffer.length > 0) {
+          const ext = hasAudio ? "ogg" : hasImage ? "jpg" : "bin";
+          const filename = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+          const uploadDir = path.resolve(env.STORAGE_LOCAL_PATH || "./uploads");
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          const filePath = path.join(uploadDir, filename);
+          fs.writeFileSync(filePath, mediaBuffer);
+
+          const mimeType = hasAudio ? "audio/ogg" : hasImage ? "image/jpeg" : "application/octet-stream";
+          mediaMeta = {
+            mediaUrl: `/api/v1/media/${filename}`,
+            mimeType,
+            fileName: filename,
+          };
+
+          if (hasAudio) {
+            console.info("[waManager] Transcribing audio voice note via Whisper API...");
+            const transcript = await transcribeAudio(mediaBuffer, filename);
+            console.info("[waManager] Transcribed Voice Note Result:", transcript);
+            mediaMeta.transcript = transcript;
+            messageBody = transcript;
+            preview = `🎙️ ${transcript}`;
+          } else if (hasImage) {
+            console.info("[waManager] Analyzing image via Vision AI...");
+            const imageAnalysis = await analyzeImage(mediaBuffer, mimeType);
+            console.info("[waManager] Image Analysis Result:", imageAnalysis);
+            mediaMeta.imageAnalysis = imageAnalysis;
+          }
+        }
+      } catch (mediaErr) {
+        console.warn("[waManager] Media download process failed:", mediaErr);
+      }
+    }
 
     const contact = await prisma.contact.upsert({
       where: {
