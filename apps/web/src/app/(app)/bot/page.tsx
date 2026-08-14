@@ -26,7 +26,7 @@ import { Badge, Button, Card, Input, PageHeader, Textarea } from "@/components/u
 import { api } from "@/lib/api";
 import { isManager } from "@/lib/roles";
 
-type TabType = "general" | "knowledge" | "integrations" | "channels" | "followups";
+type TabType = "general" | "knowledge" | "integrations" | "channels" | "followups" | "hours";
 
 type SimulatorMsg = {
   id: string;
@@ -144,6 +144,19 @@ export default function BotPage() {
     setSaving(true);
     setError("");
     try {
+      if (botSettings) {
+        await api("/bot/settings", {
+          method: "PATCH",
+          body: JSON.stringify({
+            businessHoursEnabled: botSettings.businessHoursEnabled,
+            businessHoursStart: botSettings.businessHoursStart,
+            businessHoursEnd: botSettings.businessHoursEnd,
+            businessHoursTz: botSettings.businessHoursTz,
+            awayMessage: botSettings.awayMessage,
+          }),
+        }).catch(() => {});
+      }
+
       const updated = await api<AiAgent>(`/ai-agents/${activeAgentId}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -419,6 +432,18 @@ export default function BotPage() {
                 >
                   <Clock className="h-4 w-4" />
                   Followups
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("hours")}
+                  className={`flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-xs font-semibold transition-all ${
+                    activeTab === "hours"
+                      ? "border-[var(--color-accent)] text-[var(--color-accent)]"
+                      : "border-transparent text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+                  }`}
+                >
+                  <Clock className="h-4 w-4 text-purple-600" />
+                  ⏰ Jam Kerja & Away Message
                 </button>
               </div>
 
@@ -919,6 +944,115 @@ export default function BotPage() {
                         </div>
                       </div>
                     ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Tab 6: Jam Kerja AI & Away Message */}
+              {activeTab === "hours" ? (
+                <div className="space-y-4">
+                  {/* Master Toggle Jam Kerja */}
+                  <div className="flex items-center justify-between p-4 border rounded-2xl border-purple-200 bg-purple-50/40">
+                    <div>
+                      <div className="font-bold text-sm text-purple-950 flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-purple-600" />
+                        Aktifkan Pembatasan Jam Kerja Operasional AI
+                      </div>
+                      <div className="text-xs text-purple-800/80 mt-0.5">
+                        Jika diaktifkan, di luar jam kerja operasional AI Bot secara otomatis membalas dengan pesan khusus ("Away Message") dan menunda balasan otomatis biasa.
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={!!botSettings?.businessHoursEnabled}
+                      onChange={(e) =>
+                        setBotSettings((prev) =>
+                          prev ? { ...prev, businessHoursEnabled: e.target.checked } : null,
+                        )
+                      }
+                      className="h-5 w-5 rounded text-purple-600 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                        🌅 Jam Mulai Operasional (Buka)
+                      </label>
+                      <Input
+                        type="text"
+                        value={botSettings?.businessHoursStart || "08:00"}
+                        onChange={(e) =>
+                          setBotSettings((prev) =>
+                            prev ? { ...prev, businessHoursStart: e.target.value } : null,
+                          )
+                        }
+                        placeholder="08:00"
+                        className="font-mono text-center font-bold text-slate-800"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-1 block">Format 24 Jam (hh:mm)</span>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                        🌙 Jam Selesai Operasional (Tutup)
+                      </label>
+                      <Input
+                        type="text"
+                        value={botSettings?.businessHoursEnd || "22:00"}
+                        onChange={(e) =>
+                          setBotSettings((prev) =>
+                            prev ? { ...prev, businessHoursEnd: e.target.value } : null,
+                          )
+                        }
+                        placeholder="22:00"
+                        className="font-mono text-center font-bold text-slate-800"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-1 block">Format 24 Jam (hh:mm)</span>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                        🌏 Zona Waktu (Timezone)
+                      </label>
+                      <select
+                        value={botSettings?.businessHoursTz || "Asia/Jakarta"}
+                        onChange={(e) =>
+                          setBotSettings((prev) =>
+                            prev ? { ...prev, businessHoursTz: e.target.value } : null,
+                          )
+                        }
+                        className="w-full rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-2 text-xs font-semibold text-slate-800"
+                      >
+                        <option value="Asia/Jakarta">WIB - Asia/Jakarta (UTC+7)</option>
+                        <option value="Asia/Makassar">WITA - Asia/Makassar (UTC+8)</option>
+                        <option value="Asia/Jayapura">WIT - Asia/Jayapura (UTC+9)</option>
+                      </select>
+                      <span className="text-[10px] text-slate-400 mt-1 block">Zona waktu toko</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                      💬 Pesan Otomatis Luar Jam Kerja (Away Message)
+                    </label>
+                    <Textarea
+                      rows={3}
+                      value={
+                        botSettings?.awayMessage ||
+                        "Halo Kak, terima kasih telah menghubungi kami! Jam operasional layanan kami adalah pukul 08:00 - 22:00 WIB. Pesan Kakak telah kami terima dan akan dibalas saat jam kerja kembali aktif. Terima kasih! 🙏"
+                      }
+                      onChange={(e) =>
+                        setBotSettings((prev) =>
+                          prev ? { ...prev, awayMessage: e.target.value } : null,
+                        )
+                      }
+                      placeholder="Pesan otomatis saat pelanggan chat di luar jam kerja..."
+                      className="font-medium text-xs leading-relaxed"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Pesan ini akan otomatis dikirimkan ke WhatsApp pelanggan yang mengirim pesan di luar jam operasional.
+                    </span>
                   </div>
                 </div>
               ) : null}
