@@ -79,7 +79,7 @@ export const SYSTEM_TOOLS_DEFINITIONS = [
   {
     name: "reschedule_booking",
     description:
-      "Ubah/pindah jadwal (reschedule) reservasi atau booking pelanggan ke tanggal/jam baru. Panggil jika pelanggan ingin mengubah, menggeser, atau reschedule jadwal booking yang sudah ada.",
+      "Ubah/pindah jadwal (reschedule) atau ubah jenis layanan reservasi/booking pelanggan ke tanggal/jam/layanan baru. Panggil jika pelanggan ingin mengubah, menggeser, mereschedule jadwal, atau mengganti jenis layanan booking.",
     parameters: {
       type: "object",
       properties: {
@@ -90,6 +90,10 @@ export const SYSTEM_TOOLS_DEFINITIONS = [
         newBookingDateStr: {
           type: "string",
           description: "Jadwal tanggal & jam BARU dalam format ISO 8601 atau teks (misal 2026-08-17 14:00 atau 2026-08-17T14:00:00Z)",
+        },
+        newServiceName: {
+          type: "string",
+          description: "Nama layanan/jasa BARU jika pelanggan juga ingin mengganti jenis tindakan/layanan (misal: Konsultasi Pemasangan Behel, Cabut Gigi, Scaling Gigi)",
         },
         reason: {
           type: "string",

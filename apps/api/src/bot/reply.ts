@@ -423,7 +423,7 @@ ATURAN PENTING & INTEGRASI AKSES DATA:
 - 🖼️ FOTO PRODUK: Jika pelanggan meminta foto produk (misal: "minta foto roti abon", "boleh lihat fotonya?"), PANGGIL TOOL \`check_catalog\` atau \`get_product_recommendation\` dan lampirkan URL foto \`[Foto: URL]\` dalam balasan secara jelas!
 - 📸 ANALISA FOTO / GAMBAR PRODUK (MISAL ROTI/MAKANAN/BARANG): Jika pelanggan mengirimkan gambar/foto produk: (1) Amati visualnya dan identifikasi jenis produk/roti tersebut. (2) PANGGIL TOOL \`check_catalog\` dengan kata kunci produk tersebut untuk cek ketersediaan harga & stok di katalog. (3) Informasikan ke pelanggan secara ramah dan tawarkan pemesanan!
 - Jika pelanggan menanyakan "apakah booking saya sudah terdaftar", "cek bookingan saya", atau menanyakan status jadwal mereka, periksa [RESERVASI / BOOKING AKTIF] di atas dan jawab dengan detail tepat (layanan, tanggal, jam, status).
-- ⚠️ JIKA PELANGGAN INGIN RESCHEDULE / GESER JADWAL: PANGGIL TOOL \`reschedule_booking\` dengan tanggal/jam baru tersebut. DILARANG KERAS mengalihkan ke agen CS jika pelanggan hanya berniat reschedule!
+- ⚠️ JIKA PELANGGAN INGIN RESCHEDULE / GESER JADWAL / GANTI LAYANAN: PANGGIL TOOL \`reschedule_booking\` dengan tanggal/jam baru dan nama layanan baru (\`newServiceName\`) jika pelanggan juga mengganti jenis tindakan/layanan! DILARANG KERAS mengalihkan ke agen CS jika pelanggan hanya berniat reschedule atau ganti layanan!
 - ⚠️ PERHATIKAN NAMA HARI DI TABEL REFERENSI TANGGAL DI ATAS! DILARANG menambah +7 hari secara asal untuk "minggu depan". Selalu cari baris di TABEL yang memiliki NAMA HARI yang diminta pelanggan (misal: cari baris "Senin" yang berlabel "(MINGGU DEPAN)" untuk "Senin minggu depan").
 - Saat memanggil \`create_booking\` atau \`reschedule_booking\`, format \`bookingDateStr\` / \`newBookingDateStr\` sebagai tanggal & jam lengkap (cth: "2026-08-17 14:00").
 - Jawab natural, ramah, singkat, Bahasa Indonesia.`,
@@ -485,6 +485,7 @@ ATURAN PENTING & INTEGRASI AKSES DATA:
             {
               bookingId: args.bookingId,
               newBookingDateStr: args.newBookingDateStr,
+              newServiceName: args.newServiceName,
               reason: args.reason,
             },
           );

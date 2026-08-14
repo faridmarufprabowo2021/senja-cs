@@ -113,10 +113,11 @@ export async function rescheduleBooking(
   opts: {
     bookingId?: string;
     newBookingDateStr: string;
+    newServiceName?: string;
     reason?: string;
   },
 ): Promise<BookingToolResult> {
-  const { bookingId, newBookingDateStr, reason } = opts;
+  const { bookingId, newBookingDateStr, newServiceName, reason } = opts;
 
   let targetBooking = null;
 
@@ -190,10 +191,12 @@ export async function rescheduleBooking(
     };
   }
 
+  const updatedServiceName = newServiceName && newServiceName.trim() ? newServiceName.trim() : targetBooking.serviceName;
   const noteAddition = reason ? ` [Reschedule: ${reason}]` : " [Reschedule via AI Bot]";
   const updated = await prisma.booking.update({
     where: { id: targetBooking.id },
     data: {
+      serviceName: updatedServiceName,
       bookingDate: newBookingDate,
       status: "confirmed",
       note: `${targetBooking.note || ""}${noteAddition}`.trim(),
