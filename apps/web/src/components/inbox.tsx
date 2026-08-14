@@ -572,6 +572,15 @@ export function InboxView() {
     void loadMessages(activeId);
   }, [activeId, loadMessages]);
 
+  // 1. Silent Background Auto-Polling Interval (Guarantees zero missed chats even during WS drops)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void loadConversations();
+      if (activeId) void loadMessages(activeId);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [loadConversations, loadMessages, activeId]);
+
   useEffect(() => {
     api<{ quickReplies?: string[] }>("/bot/settings")
       .then((s) => setQuickReplies(s.quickReplies ?? []))
@@ -615,27 +624,61 @@ export function InboxView() {
         }
       }
     }
+
     if (event === "conversation.updated") {
       const conv = data as Conversation;
       setItems((prev) => {
         const idx = prev.findIndex((c) => c.id === conv.id);
-        if (idx === -1) return [conv, ...prev];
-        const next = [...prev];
-        next[idx] = conv;
+        let next: Conversation[];
+        if (idx === -1) {
+          next = [conv, ...prev];
+        } else {
+          next = [...prev];
+          next[idx] = { ...next[idx], ...conv };
+        }
         return next.sort(
           (a, b) =>
             new Date(b.lastMessageAt).getTime() -
             new Date(a.lastMessageAt).getTime(),
         );
       });
+      setActiveId((prev) => prev || conv.id);
     }
+
     if (event === "message.created") {
       const msg = data as Message;
+
+      // 1. Append message to currently open chat window if active
       if (msg.conversationId === activeId) {
         setMessages((prev) =>
           prev.some((m) => m.id === msg.id) ? prev : [...prev, msg],
         );
       }
+
+      // 2. Update sidebar items list (lastMessagePreview & lastMessageAt)
+      setItems((prev) => {
+        const idx = prev.findIndex((c) => c.id === msg.conversationId);
+        if (idx === -1) {
+          void loadConversations();
+          return prev;
+        }
+        const next = [...prev];
+        const currentConv = next[idx];
+        next[idx] = {
+          ...currentConv,
+          lastMessagePreview: msg.body ? msg.body.slice(0, 200) : currentConv.lastMessagePreview,
+          lastMessageAt: msg.createdAt || new Date().toISOString(),
+          unreadCount:
+            msg.direction === "in" && msg.conversationId !== activeId
+              ? currentConv.unreadCount + 1
+              : currentConv.unreadCount,
+        };
+        return next.sort(
+          (a, b) =>
+            new Date(b.lastMessageAt).getTime() -
+            new Date(a.lastMessageAt).getTime(),
+        );
+      });
     }
   });
 

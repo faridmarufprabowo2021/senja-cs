@@ -320,8 +320,15 @@ class WaManager {
       },
     });
 
+    const fullConv = await prisma.conversation.findUnique({
+      where: { id: conversation.id },
+      include: { contact: true, assignee: true },
+    });
+
     hub.toTenant(tenantId, "message.created", mapMessage(message));
-    hub.toTenant(tenantId, "conversation.updated", mapConversation(conversation));
+    if (fullConv) {
+      hub.toTenant(tenantId, "conversation.updated", mapConversation(fullConv));
+    }
     hub.toTenant(tenantId, "wa.call_incoming", {
       id: callData.id,
       from: callData.from,
