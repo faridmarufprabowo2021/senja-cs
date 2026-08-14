@@ -530,6 +530,8 @@ export function InboxView() {
     timestamp: string;
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
 
   const loadConversations = useCallback(async () => {
     try {
@@ -558,7 +560,19 @@ export function InboxView() {
     }
     try {
       const data = await api<Message[]>(`/conversations/${id}/messages`);
-      setMessages(data);
+      setMessages((prev) => {
+        if (activeIdRef.current !== id) return data;
+        const map = new Map<string, Message>();
+        for (const m of data) map.set(m.id, m);
+        for (const m of prev) {
+          if (m.conversationId === id && !map.has(m.id)) {
+            map.set(m.id, m);
+          }
+        }
+        return Array.from(map.values()).sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        );
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat pesan");
     }
@@ -576,10 +590,10 @@ export function InboxView() {
   useEffect(() => {
     const interval = setInterval(() => {
       void loadConversations();
-      if (activeId) void loadMessages(activeId);
+      if (activeIdRef.current) void loadMessages(activeIdRef.current);
     }, 4000);
     return () => clearInterval(interval);
-  }, [loadConversations, loadMessages, activeId]);
+  }, [loadConversations, loadMessages]);
 
   useEffect(() => {
     api<{ quickReplies?: string[] }>("/bot/settings")
@@ -647,12 +661,16 @@ export function InboxView() {
 
     if (event === "message.created") {
       const msg = data as Message;
+      const currentActiveId = activeIdRef.current;
 
       // 1. Append message to currently open chat window if active
-      if (msg.conversationId === activeId) {
-        setMessages((prev) =>
-          prev.some((m) => m.id === msg.id) ? prev : [...prev, msg],
-        );
+      if (msg.conversationId === currentActiveId) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg].sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          );
+        });
       }
 
       // 2. Update sidebar items list (lastMessagePreview & lastMessageAt)
@@ -669,7 +687,7 @@ export function InboxView() {
           lastMessagePreview: msg.body ? msg.body.slice(0, 200) : currentConv.lastMessagePreview,
           lastMessageAt: msg.createdAt || new Date().toISOString(),
           unreadCount:
-            msg.direction === "in" && msg.conversationId !== activeId
+            msg.direction === "in" && msg.conversationId !== currentActiveId
               ? currentConv.unreadCount + 1
               : currentConv.unreadCount,
         };

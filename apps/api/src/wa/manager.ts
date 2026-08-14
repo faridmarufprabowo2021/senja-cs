@@ -484,7 +484,6 @@ class WaManager {
       where: {
         tenantId,
         contactId: contact.id,
-        waSessionId: sessionId,
         status: { not: "resolved" },
       },
       orderBy: { lastMessageAt: "desc" },
