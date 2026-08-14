@@ -201,7 +201,9 @@ function MessageBubble({
             {message.metadata.fileName || "Unduh dokumen"}
           </a>
         ) : null}
-        <p className="whitespace-pre-wrap">{message.body}</p>
+        {message.type !== "call_summary" ? (
+          <p className="whitespace-pre-wrap">{message.body}</p>
+        ) : null}
         {message.metadata?.escalateReason ? (
           <div className="mt-1.5 text-[10px] text-[var(--color-warn)]">
             Handoff: {message.metadata.escalateReason}
