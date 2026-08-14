@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Eye, FileText, Image as ImageIcon, Plus, RefreshCw, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { Eye, FileText, Image as ImageIcon, Plus, RefreshCw, Sparkles, Trash2, Upload, Video, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AiAgent, KnowledgeDocument } from "@cs/shared";
 import { Badge, Button, Card, Input, PageHeader, Textarea } from "@/components/ui";
@@ -41,6 +41,7 @@ export default function KnowledgePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const mediaFileRef = useRef<HTMLInputElement>(null);
   const imgUploadRef = useRef<HTMLInputElement>(null);
+  const vidUploadRef = useRef<HTMLInputElement>(null);
 
   // View Document Content State
   const [selectedDoc, setSelectedDoc] = useState<KnowledgeDocumentDetail | null>(null);
@@ -51,6 +52,14 @@ export default function KnowledgePage() {
   const [imgName, setImgName] = useState("");
   const [imgUrl, setImgUrl] = useState("");
   const [imgCaption, setImgCaption] = useState("");
+
+  // Modal Video Upload State
+  const [showVidModal, setShowVidModal] = useState(false);
+  const [vidName, setVidName] = useState("");
+  const [vidUrl, setVidUrl] = useState("");
+  const [vidCaption, setVidCaption] = useState("");
+  const [vidWhenToPost, setVidWhenToPost] = useState("");
+
   const [selectedAgentId, setSelectedAgentId] = useState("");
 
   const refresh = useCallback(async () => {
@@ -129,10 +138,16 @@ export default function KnowledgePage() {
           },
         );
 
-        if (res.document?.fileUrl && file.type.startsWith("image/")) {
-          setImgUrl(res.document.fileUrl);
-          setImgName(file.name.replace(/\.[^/.]+$/, ""));
-          setShowImgModal(true);
+        if (res.document?.fileUrl) {
+          if (file.type.startsWith("image/")) {
+            setImgUrl(res.document.fileUrl);
+            setImgName(file.name.replace(/\.[^/.]+$/, ""));
+            setShowImgModal(true);
+          } else if (file.type.startsWith("video/")) {
+            setVidUrl(res.document.fileUrl);
+            setVidName(file.name.replace(/\.[^/.]+$/, ""));
+            setShowVidModal(true);
+          }
         }
       }
       setToast("Berhasil mengunggah file media ke Knowledge Base!");
@@ -171,6 +186,39 @@ export default function KnowledgePage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan foto ke Knowledge Base");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAddVideoDoc() {
+    if (!vidName.trim() || !vidUrl.trim()) {
+      setError("Nama video dan URL/File video wajib diisi");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await api("/knowledge/video", {
+        method: "POST",
+        body: JSON.stringify({
+          videoName: vidName.trim(),
+          videoUrl: vidUrl.trim(),
+          videoCaption: vidCaption.trim(),
+          whenToPost: vidWhenToPost.trim(),
+          aiAgentId: selectedAgentId || undefined,
+        }),
+      });
+      setShowVidModal(false);
+      setVidName("");
+      setVidUrl("");
+      setVidCaption("");
+      setVidWhenToPost("");
+      setToast("🎥 Video & Petunjuk AI berhasil ditambahkan ke Knowledge Base!");
+      setTimeout(() => setToast(""), 4000);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan video ke Knowledge Base");
     } finally {
       setBusy(false);
     }
@@ -257,16 +305,24 @@ export default function KnowledgePage() {
     <div className="p-6 lg:p-8">
       <PageHeader
         title="Knowledge Base & Media Asset"
-        description="Sumber jawaban & foto produk/brosur RAG — upload FAQ, foto katalog, denah, dan PDF."
+        description="Sumber jawaban & media RAG — upload FAQ, foto katalog, video tutorial, denah, dan PDF."
         action={
           <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setShowVidModal(true)}
+              variant="secondary"
+              className="border-indigo-300 bg-indigo-50 text-indigo-800 hover:bg-indigo-100 font-bold"
+            >
+              <Video className="h-4 w-4 mr-1 text-indigo-600" />
+              + Unggah Video
+            </Button>
             <Button
               onClick={() => setShowImgModal(true)}
               variant="secondary"
               className="border-purple-300 bg-purple-50 text-purple-800 hover:bg-purple-100 font-bold"
             >
               <ImageIcon className="h-4 w-4 mr-1 text-purple-600" />
-              + Unggah Foto / Gambar
+              + Unggah Foto
             </Button>
             <Button
               onClick={() => mediaFileRef.current?.click()}
@@ -288,13 +344,13 @@ export default function KnowledgePage() {
         }
       />
 
-      {/* Banner Petunjuk Foto Knowledge Base */}
-      <div className="mb-6 rounded-2xl border border-purple-200 bg-purple-50/80 p-4 text-xs text-purple-950 shadow-2xs flex items-start gap-3">
-        <span className="text-xl">🖼️</span>
+      {/* Banner Petunjuk Foto & Video Knowledge Base */}
+      <div className="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50/80 p-4 text-xs text-indigo-950 shadow-2xs flex items-start gap-3">
+        <span className="text-xl">🎥</span>
         <div>
-          <h4 className="font-bold text-purple-950 text-sm mb-0.5">Fitur Foto / Gambar di Knowledge Base</h4>
+          <h4 className="font-bold text-indigo-950 text-sm mb-0.5">Fitur Video & Foto Otomatis di Knowledge Base</h4>
           <p className="leading-relaxed">
-            Anda dapat mengunggah foto brosur, denah lokasi, atau foto produk ke dalam Knowledge Base. Ketika pelanggan chat bertanya <em>"ada foto brosur hemat?"</em> atau <em>"minta foto denah lokasi"</em>, AI Agent akan secara otomatis mencocokkan nama gambar dan <strong>mengirimkan fisik foto tersebut langsung ke WhatsApp pelanggan</strong>!
+            Anda dapat mengunggah video tutorial, testimoni, atau video produk. Cukup tentukan petunjuk pemicunya (misal: <em>"Kirimkan video ini jika pelanggan menanyakan cara penggunaan"</em>), dan <strong>AI Agent akan secara cerdas menentukan kapan video tersebut dikirimkan langsung ke WhatsApp pelanggan</strong>!
           </p>
         </div>
       </div>
@@ -314,7 +370,7 @@ export default function KnowledgePage() {
       <input
         ref={mediaFileRef}
         type="file"
-        accept=".pdf,.png,.jpg,.jpeg,.webp"
+        accept=".pdf,.png,.jpg,.jpeg,.webp,.mp4,.mov,.webm"
         multiple
         className="hidden"
         onChange={(e) => {
@@ -384,21 +440,26 @@ export default function KnowledgePage() {
       </Card>
 
       <div className="space-y-3">
-        <h2 className="font-semibold text-sm text-[var(--color-ink)]">Daftar Dokumen &amp; Asset Foto Knowledge ({docs.length})</h2>
+        <h2 className="font-semibold text-sm text-[var(--color-ink)]">Daftar Dokumen &amp; Asset Media Knowledge ({docs.length})</h2>
         {!docs.length ? (
           <Card className="p-8 text-center text-sm text-[var(--color-muted)]">
-            Belum ada dokumen / foto. Unggah FAQ atau foto agar bot bisa menjawab.
+            Belum ada dokumen / media. Unggah FAQ, foto, atau video agar bot bisa menjawab.
           </Card>
         ) : (
           docs.map((doc) => {
             const isImageDoc = doc.sourceType === "image" || Boolean(doc.imageUrl);
+            const isVideoDoc = doc.sourceType === "video";
             return (
               <Card
                 key={doc.id}
                 className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex items-start gap-3">
-                  {isImageDoc && doc.imageUrl ? (
+                  {isVideoDoc ? (
+                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-700 border border-indigo-200">
+                      <Video className="h-6 w-6" />
+                    </div>
+                  ) : isImageDoc && doc.imageUrl ? (
                     <img
                       src={doc.imageUrl}
                       alt={doc.imageName || doc.title}
@@ -412,7 +473,7 @@ export default function KnowledgePage() {
                   <div>
                     <div className="font-medium text-[var(--color-ink)] flex items-center gap-1.5">
                       {doc.title}
-                      {isImageDoc ? <Badge tone="accent">🖼️ Foto Media</Badge> : null}
+                      {isVideoDoc ? <Badge tone="accent" className="bg-indigo-100 text-indigo-800 border-indigo-300">🎥 Video Media</Badge> : isImageDoc ? <Badge tone="accent">🖼️ Foto Media</Badge> : null}
                     </div>
                     {doc.imageCaption ? (
                       <p className="text-xs text-[var(--color-muted)] italic mt-0.5 line-clamp-1">
@@ -432,7 +493,7 @@ export default function KnowledgePage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {(doc.sourceType === "pdf" || isImageDoc || Boolean((doc as any).fileUrl)) && (
+                  {(doc.sourceType === "pdf" || isImageDoc || isVideoDoc || Boolean((doc as any).fileUrl)) && (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -490,6 +551,119 @@ export default function KnowledgePage() {
           })
         )}
       </div>
+
+      {/* Modal Upload/Attach Video Knowledge Base */}
+      {showVidModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
+          <Card className="w-full max-w-lg p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--color-line)] pb-3">
+              <h3 className="font-display text-base font-bold text-[var(--color-ink)] flex items-center gap-2">
+                <Video className="h-5 w-5 text-indigo-600" />
+                Tambah Video &amp; Atur Pemicu AI
+              </h3>
+              <button onClick={() => setShowVidModal(false)} className="text-xs text-[var(--color-muted)] font-bold">
+                ✕
+              </button>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[var(--color-muted)]">
+                Nama / Judul Video (Misal: Video Tutorial Pemakaian / Video Testimoni)
+              </label>
+              <Input
+                value={vidName}
+                onChange={(e) => setVidName(e.target.value)}
+                placeholder="Cth: Video Cara Penggunaan Produk Roti"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[var(--color-muted)]">
+                URL Video atau Unggah File Video (.mp4, .mov, .webm)
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  value={vidUrl}
+                  onChange={(e) => setVidUrl(e.target.value)}
+                  placeholder="https://.../video-tutorial.mp4"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => vidUploadRef.current?.click()}
+                >
+                  Pilih File Video
+                </Button>
+                <input
+                  ref={vidUploadRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) void uploadMediaFiles(e.target.files!);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[var(--color-muted)]">
+                Caption Pesan Pengantar saat Video Dikirim ke WA
+              </label>
+              <Textarea
+                rows={2}
+                value={vidCaption}
+                onChange={(e) => setVidCaption(e.target.value)}
+                placeholder="Cth: Ini video tutorial singkat pemakaian produk kami ya Kak! 😊"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-indigo-700">
+                ⚡ Petunjuk / Kapan Video Ini Harus Dikirim Oleh AI?
+              </label>
+              <Textarea
+                rows={3}
+                value={vidWhenToPost}
+                onChange={(e) => setVidWhenToPost(e.target.value)}
+                placeholder="Cth: Kirimkan video ini ketika pelanggan menanyakan cara pemakaian, tutorial, atau saat pelanggan ragu cara pakai."
+              />
+              <p className="mt-1 text-[11px] text-[var(--color-muted)]">
+                AI Agent akan membaca petunjuk ini untuk menentukan kapan video ini dikirimkan secara otomatis di WhatsApp.
+              </p>
+            </div>
+
+            {agents.length > 0 ? (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[var(--color-muted)]">
+                  Hubungkan ke AI Agent Tertentu (Opsional)
+                </label>
+                <select
+                  value={selectedAgentId}
+                  onChange={(e) => setSelectedAgentId(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--color-line)] bg-white px-3 py-2 text-xs"
+                >
+                  <option value="">Semua AI Agent (Default)</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--color-line)]">
+              <Button variant="ghost" onClick={() => setShowVidModal(false)}>
+                Batal
+              </Button>
+              <Button disabled={busy} onClick={() => void handleAddVideoDoc()}>
+                {busy ? "Menyimpan…" : "Simpan Video Knowledge"}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Modal Upload/Attach Foto Knowledge Base */}
       {showImgModal && (

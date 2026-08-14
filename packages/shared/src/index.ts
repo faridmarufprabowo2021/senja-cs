@@ -147,7 +147,7 @@ export interface InstagramCommentRule {
 export interface KnowledgeDocument {
   id: string;
   title: string;
-  sourceType: "pdf" | "txt" | "md" | "faq" | "image";
+  sourceType: "pdf" | "txt" | "md" | "faq" | "image" | "video";
   status: KnowledgeDocStatus;
   chunkCount?: number;
   fileUrl?: string;

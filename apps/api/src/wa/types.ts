@@ -3,7 +3,8 @@ export interface WaSendMediaOptions {
   mimetype: string;
   fileName?: string;
   caption?: string;
-  isImage: boolean;
+  isImage?: boolean;
+  isVideo?: boolean;
 }
 
 export interface IWaDriver {

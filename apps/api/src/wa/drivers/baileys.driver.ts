@@ -265,6 +265,13 @@ export class BaileysDriver implements IWaDriver {
         "WhatsApp (Baileys) belum terhubung. Buka menu Channels → Hubungkan / scan QR, lalu coba lagi.",
       );
     }
+    if (opts.isVideo) {
+      return this.socket.sendMessage(jid, {
+        video: opts.buffer,
+        caption: opts.caption,
+        mimetype: opts.mimetype || "video/mp4",
+      });
+    }
     if (opts.isImage) {
       return this.socket.sendMessage(jid, {
         image: opts.buffer,

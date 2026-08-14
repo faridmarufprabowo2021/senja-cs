@@ -221,7 +221,8 @@ class WaManager {
       mimetype: string;
       fileName: string;
       caption?: string;
-      isImage: boolean;
+      isImage?: boolean;
+      isVideo?: boolean;
     },
   ) {
     const driver = await this.ensureDriver(sessionId);

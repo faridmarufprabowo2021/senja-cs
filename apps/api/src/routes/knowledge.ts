@@ -21,7 +21,7 @@ function mapDoc(d: {
   return {
     id: d.id,
     title: d.title,
-    sourceType: d.sourceType as "pdf" | "txt" | "md" | "faq" | "image",
+    sourceType: d.sourceType as "pdf" | "txt" | "md" | "faq" | "image" | "video",
     status: d.status as "processing" | "ready" | "failed",
     chunkCount: d.chunkCount,
     fileUrl: d.fileUrl ?? undefined,
@@ -173,6 +173,53 @@ PETUNJUK AI: Jika pelanggan meminta foto, brosur, denah, atau gambar tentang "${
     },
   );
 
+  app.post(
+    "/knowledge/video",
+    { preHandler: [requireRole("owner", "admin")] },
+    async (request, reply) => {
+      const body = z
+        .object({
+          videoName: z.string().min(1).max(100),
+          videoUrl: z.string().url(),
+          videoCaption: z.string().max(1000).optional(),
+          whenToPost: z.string().max(1000).optional(),
+          aiAgentId: z.string().optional(),
+        })
+        .parse(request.body);
+
+      const captionText = body.videoCaption || `Video ${body.videoName}`;
+      const whenText = body.whenToPost || `Kirimkan video ini ketika pelanggan menanyakan informasi terkait ${body.videoName}`;
+
+      const content = `[VIDEO KNOWLEDGE BASE: ${body.videoName}]
+Nama Video: ${body.videoName}
+Keterangan/Caption Video: ${captionText}
+Petunjuk / Kondisi Saat Video Harus Dikirim: ${whenText}
+URL Video: ${body.videoUrl}
+
+PETUNJUK UTAMA AI BOT: Jika pelanggan menanyakan hal terkait "${body.videoName}" atau jika kondisi "${whenText}" terdeteksi, berikan penjelasan ramah dan sertakan tag URL video berikut: [Video: ${body.videoUrl}]!`;
+
+      const doc = await prisma.knowledgeDocument.create({
+        data: {
+          tenantId: request.tenant.tenantId,
+          aiAgentId: body.aiAgentId || null,
+          title: `🎥 ${body.videoName}`,
+          sourceType: "video",
+          status: "processing",
+          imageUrl: body.videoUrl,
+          fileUrl: body.videoUrl,
+          imageName: body.videoName,
+          imageCaption: `${captionText} | Petunjuk AI: ${whenText}`,
+        },
+      });
+
+      await ingestDocument(doc.id, content);
+      const ready = await prisma.knowledgeDocument.findUniqueOrThrow({
+        where: { id: doc.id },
+      });
+      return reply.code(201).send(mapDoc(ready));
+    },
+  );
+
   app.delete(
     "/knowledge/documents/:id",
     { preHandler: [requireRole("owner", "admin")] },
@@ -287,9 +334,10 @@ PETUNJUK AI: Jika pelanggan meminta foto, brosur, denah, atau gambar tentang "${
       const ext = pathMod.extname(data.filename).toLowerCase();
       const isPdf = ext === ".pdf";
       const isImage = [".png", ".jpg", ".jpeg", ".webp"].includes(ext);
+      const isVideo = [".mp4", ".mov", ".webm", ".avi", ".mkv"].includes(ext);
 
-      if (!isPdf && !isImage) {
-        return reply.code(400).send({ error: "Format file harus berupa PDF, PNG, JPG, JPEG, atau WEBP" });
+      if (!isPdf && !isImage && !isVideo) {
+        return reply.code(400).send({ error: "Format file harus berupa PDF, PNG, JPG, JPEG, WEBP, MP4, MOV, atau WEBM" });
       }
 
       const safeFilename = `${Date.now()}-${data.filename.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
@@ -299,7 +347,7 @@ PETUNJUK AI: Jika pelanggan meminta foto, brosur, denah, atau gambar tentang "${
       fs.writeFileSync(filePath, buffer);
 
       const publicUrl = `http://localhost:4000/api/v1/media/${safeFilename}`;
-      const sourceType = isPdf ? "pdf" : "image";
+      const sourceType = isPdf ? "pdf" : isVideo ? "video" : "image";
 
       const doc = await prisma.knowledgeDocument.create({
         data: {

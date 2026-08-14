@@ -767,6 +767,7 @@ export async function sendBotMessage(
   // Clean text message for customer (strip internal raw media URLs)
   const cleanedText = text
     .replace(/\[Foto:\s*https?:\/\/[^\]]+\]/gi, "")
+    .replace(/\[Video:\s*https?:\/\/[^\]]+\]/gi, "")
     .replace(/https?:\/\/localhost:\d+\/api\/v1\/media\/[^\s\)]+/gi, "")
     .trim();
 
@@ -851,6 +852,64 @@ export async function sendBotMessage(
           }
         } catch (err) {
           console.warn("Media auto-send error:", err);
+        }
+      }
+
+      // Auto-send Knowledge Base Video Media if Knowledge Video exists
+      const kbVideos = await prisma.knowledgeDocument.findMany({
+        where: { tenantId: conversation.tenantId, sourceType: "video" },
+        take: 10,
+      });
+
+      const matchedKbVid = kbVideos.find(
+        (vid) =>
+          vid.fileUrl &&
+          (text.includes(vid.fileUrl) ||
+            text.includes(`[Video: ${vid.fileUrl}]`) ||
+            (vid.imageName && text.toLowerCase().includes(vid.imageName.toLowerCase())) ||
+            text.toLowerCase().includes("video")),
+      );
+
+      if (matchedKbVid && matchedKbVid.fileUrl) {
+        try {
+          let vidBuf: Buffer | null = null;
+          let vidMime = "video/mp4";
+
+          const fs = await import("node:fs");
+          const pathMod = await import("node:path");
+          const { env } = await import("../lib/env.js");
+
+          const vidFilename = matchedKbVid.storageKey || matchedKbVid.fileUrl.split("/").pop();
+          if (vidFilename) {
+            const localPath = pathMod.join(env.STORAGE_LOCAL_PATH, vidFilename);
+            if (fs.existsSync(localPath)) {
+              vidBuf = fs.readFileSync(localPath);
+              const ext = pathMod.extname(localPath).toLowerCase();
+              if (ext === ".mov") vidMime = "video/quicktime";
+              if (ext === ".webm") vidMime = "video/webm";
+            }
+          }
+
+          if (!vidBuf && matchedKbVid.fileUrl) {
+            const vidRes = await fetch(matchedKbVid.fileUrl);
+            if (vidRes.ok) {
+              vidBuf = Buffer.from(await vidRes.arrayBuffer());
+              vidMime = vidRes.headers.get("content-type") || "video/mp4";
+            }
+          }
+
+          if (vidBuf) {
+            const vidCaption = `🎥 ${matchedKbVid.imageName || matchedKbVid.title}\n${matchedKbVid.imageCaption ? matchedKbVid.imageCaption.split(" | Petunjuk AI:")[0] : ""}`;
+            await waManager.sendMedia(conversation.waSessionId, conversation.contact.waJid, {
+              isVideo: true,
+              buffer: vidBuf,
+              caption: vidCaption.trim(),
+              mimetype: vidMime,
+              fileName: "knowledge-video.mp4",
+            });
+          }
+        } catch (err) {
+          console.warn("Video auto-send error:", err);
         }
       }
     } catch (err) {
