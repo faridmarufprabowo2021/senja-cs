@@ -21,6 +21,7 @@ const schema = z.object({
   MIDTRANS_CLIENT_KEY: z.string().default("SB-Mid-client-placeholder"),
   MIDTRANS_IS_PRODUCTION: z.coerce.boolean().default(false),
   SHIPPING_API_KEY: z.string().optional(),
+  GROQ_API_KEY: z.string().optional(),
 });
 
 export const env = schema.parse({
@@ -40,6 +41,7 @@ export const env = schema.parse({
   MIDTRANS_CLIENT_KEY: process.env.MIDTRANS_CLIENT_KEY,
   MIDTRANS_IS_PRODUCTION: process.env.MIDTRANS_IS_PRODUCTION,
   SHIPPING_API_KEY: process.env.SHIPPING_API_KEY || process.env.BINDERBYTE_API_KEY,
+  GROQ_API_KEY: process.env.GROQ_API_KEY || undefined,
 });
 
 export const hasLlm = Boolean(env.LLM_API_KEY);
