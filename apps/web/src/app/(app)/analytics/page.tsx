@@ -41,6 +41,12 @@ type AnalyticsOverview = {
     complaint: number;
     support: number;
   };
+  dailyTrend?: Array<{
+    date: string;
+    day: string;
+    revenue: number;
+    chats: number;
+  }>;
 };
 
 type AnalyzedConversation = {

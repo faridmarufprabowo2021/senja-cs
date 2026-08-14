@@ -37,7 +37,51 @@ export async function analyticsRoutes(app: FastifyInstance) {
     const csatPercentage = totalAnalyzed > 0 ? Math.round((positiveCount / totalAnalyzed) * 100) : 100;
     const convertedCount = allAnalytics.filter((a) => a.isConverted).length;
     const conversionRate = totalAnalyzed > 0 ? Math.round((convertedCount / totalAnalyzed) * 100) : 0;
-    const totalRevenue = allAnalytics.reduce((acc, a) => acc + a.revenue, 0);
+    const analyticsRevenue = allAnalytics.reduce((acc, a) => acc + a.revenue, 0);
+
+    // Compute real revenue from Paid Orders in database
+    const totalOrderRev = await prisma.order.aggregate({
+      where: { tenantId, status: "paid" as any },
+      _sum: { total: true },
+    });
+    const realTotalRevenue = (totalOrderRev._sum.total || 0) + analyticsRevenue;
+
+    // Build real 7-day daily trend from DB records
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const [realPaidOrders, recentMessages] = await Promise.all([
+      prisma.order.findMany({
+        where: { tenantId, status: "paid" as any, createdAt: { gte: sevenDaysAgo } },
+        select: { total: true, createdAt: true },
+      }),
+      prisma.message.findMany({
+        where: { tenantId, direction: "in", createdAt: { gte: sevenDaysAgo } },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+    const dailyTrend = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      const dayName = dayNames[d.getDay()];
+
+      const dayOrders = realPaidOrders.filter((ord) => ord.createdAt.toISOString().split("T")[0] === dateStr);
+      const dayMessages = recentMessages.filter((m) => m.createdAt.toISOString().split("T")[0] === dateStr);
+
+      const dayRev = dayOrders.reduce((acc: number, ord: { total: number }) => acc + ord.total, 0);
+
+      dailyTrend.push({
+        date: dateStr,
+        day: dayName,
+        revenue: dayRev,
+        chats: dayMessages.length,
+      });
+    }
 
     const intentBreakdown = {
       inquiry: allAnalytics.filter((a) => a.intentCategory === "inquiry").length,
@@ -51,7 +95,7 @@ export async function analyticsRoutes(app: FastifyInstance) {
       ok: true,
       totalAnalyzed,
       csatPercentage,
-      totalRevenue,
+      totalRevenue: realTotalRevenue,
       conversionRate,
       complaintCount: negativeCount,
       sentimentBreakdown: {
@@ -60,6 +104,7 @@ export async function analyticsRoutes(app: FastifyInstance) {
         negative: negativeCount,
       },
       intentBreakdown,
+      dailyTrend,
     };
   });
 
