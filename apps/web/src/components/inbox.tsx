@@ -112,12 +112,32 @@ function MessageBubble({
         {message.metadata?.mediaUrl &&
         (message.type === "image" ||
           message.metadata.mimeType?.startsWith("image/")) ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={mediaUrl(message.metadata.mediaUrl)}
-            alt={message.body || "gambar"}
-            className="mb-2 max-h-56 max-w-full rounded-xl object-contain"
-          />
+          <div className="mb-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={mediaUrl(message.metadata.mediaUrl)}
+              alt={message.body || "gambar"}
+              className="max-h-56 max-w-full rounded-xl object-contain"
+            />
+            {message.metadata?.imageAnalysis ? (
+              <div className="mt-1 flex items-center gap-1.5 rounded-lg bg-blue-50/90 border border-blue-200 px-2 py-1 text-[11px] text-blue-800 font-medium">
+                <span>👁️ AI Vision:</span>
+                <span className="truncate">{message.metadata.imageAnalysis}</span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {message.metadata?.mediaUrl && message.type === "audio" ? (
+          <div className="mb-2 p-2 rounded-xl bg-purple-50/80 border border-purple-200">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-bold text-purple-800">🎙️ Pesan Suara</span>
+            </div>
+            <audio
+              controls
+              src={mediaUrl(message.metadata.mediaUrl)}
+              className="w-full max-w-[240px] h-8"
+            />
+          </div>
         ) : null}
         {message.metadata?.mediaUrl && message.type === "document" ? (
           <a

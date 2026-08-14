@@ -98,6 +98,8 @@ export interface Message {
     mediaUrl?: string;
     mimeType?: string;
     fileName?: string;
+    transcript?: string;
+    imageAnalysis?: string;
     tool?: string;
     away?: boolean;
   };
