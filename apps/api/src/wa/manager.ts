@@ -3,6 +3,7 @@ import { hub } from "../ws/hub.js";
 import { mapMessage, mapConversation } from "../lib/mappers.js";
 import { transcribeAudio } from "../lib/transcribe.js";
 import { analyzeImage } from "../lib/vision.js";
+import { summarizeCall } from "../lib/call-summarizer.js";
 import type { IWaDriver, WaSendMediaOptions } from "./types.js";
 import { BaileysDriver } from "./drivers/baileys.driver.js";
 import { OpenWaDriver } from "./drivers/openwa.driver.js";
@@ -221,6 +222,102 @@ class WaManager {
   ) {
     const driver = await this.ensureDriver(sessionId);
     return driver.sendMedia(jid, opts);
+  }
+
+  public async handleCallEvent(
+    tenantId: string,
+    sessionId: string,
+    callData: {
+      from: string;
+      status: "offer" | "missed" | "reject" | "accept";
+      id: string;
+      durationSec?: number;
+      audioBuffer?: Buffer;
+      pushName?: string;
+    },
+  ) {
+    if (!callData.from || callData.from.endsWith("@g.us")) return;
+    const phone = callData.from.split("@")[0] ?? callData.from;
+    const pushName = callData.pushName || `+${phone}`;
+    const now = new Date();
+
+    const contact = await prisma.contact.upsert({
+      where: { tenantId_waJid: { tenantId, waJid: callData.from } },
+      create: {
+        tenantId,
+        waJid: callData.from,
+        phone: `+${phone.replace(/\D/g, "")}`,
+        name: pushName,
+        avatarHue: Math.floor(Math.random() * 360),
+        lastMessageAt: now,
+      },
+      update: {
+        name: pushName,
+        lastMessageAt: now,
+      },
+    });
+
+    let conversation = await prisma.conversation.findFirst({
+      where: { tenantId, contactId: contact.id, waSessionId: sessionId, status: { not: "resolved" } },
+      orderBy: { lastMessageAt: "desc" },
+    });
+
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
+        data: {
+          tenantId,
+          contactId: contact.id,
+          waSessionId: sessionId,
+          status: "bot_active",
+          mode: "bot",
+          lastMessagePreview: "📞 Panggilan WhatsApp",
+          lastMessageAt: now,
+          unreadCount: 1,
+        },
+      });
+    }
+
+    const isMissed = callData.status === "missed" || callData.status === "reject";
+    let summaryData = {
+      summary: isMissed ? "Panggilan telepon tidak terangkat / ditolak." : "Panggilan telepon WhatsApp selesai.",
+      keyTakeaways: isMissed ? [`Telepon dari pelanggan pada ${now.toLocaleTimeString()}`] : ["Percakapan via telepon selesai."],
+      actionItems: isMissed ? ["Hubungi kembali nomor pelanggan"] : ["Tindak lanjuti hasil pembicaraan"],
+      durationSec: callData.durationSec || 0,
+      isMissedCall: isMissed,
+    };
+
+    if (!isMissed && callData.audioBuffer) {
+      const transcript = await transcribeAudio(callData.audioBuffer, "call.ogg");
+      if (transcript && !transcript.includes("(Pesan suara")) {
+        const aiSummary = await summarizeCall(transcript);
+        summaryData = {
+          ...summaryData,
+          summary: aiSummary.summary,
+          keyTakeaways: aiSummary.keyTakeaways,
+          actionItems: aiSummary.actionItems,
+        };
+      }
+    }
+
+    const waMessageId = `call_${callData.id}_${Date.now()}`;
+    const message = await prisma.message.create({
+      data: {
+        tenantId,
+        conversationId: conversation.id,
+        direction: "in",
+        senderType: "customer",
+        senderName: pushName,
+        type: "call_summary",
+        body: `📞 Panggilan WhatsApp: ${summaryData.summary}`,
+        waMessageId,
+        metadata: {
+          callSummary: summaryData,
+        },
+      },
+    });
+
+    hub.toTenant(tenantId, "message.created", mapMessage(message));
+    hub.toTenant(tenantId, "conversation.updated", mapConversation(conversation));
   }
 
   public async handleInbound(
