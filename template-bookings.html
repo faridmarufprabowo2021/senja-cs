@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template Import Booking - Senja CS</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 25px; }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        tr:nth-child(even) { background-color: #f8f9fa; }
+        .example {
+            background-color: #e8f4f8;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.4);
+        }
+        .note {
+            background-color: #fef9e7;
+            border: 1px solid #ffec8d;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        code {
+            background-color: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 Template Import Booking - Senja CS</h1>
+        
+        <div class="success">
+            ✅ **File sudah siap!** Klik tombol "Download Template CSV" di bawah untuk mendapatkan file ready-to-use.
+        </div>
+
+        <div class="warning">
+            ⚠️ **PENTING**: File harus dalam format CSV (comma-separated values), bukan gambar atau format lain!
+        </div>
+
+        <h2>📋 Format yang Diperlukan</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Kolom</th>
+                    <th>Contoh</th>
+                    <th>Wajib?</th>
+                    <th>Keterangan</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Layanan</strong></td>
+                    <td>Potong Rambut</td>
+                    <td>✅ Ya</td>
+                    <td>Nama layanan atau booking</td>
+                </tr>
+                <tr>
+                    <td><strong>Jadwal Booking</strong></td>
+                    <td>2026-08-15T14:00:00Z</td>
+                    <td>✅ Ya</td>
+                    <td>Format ISO 8601 dengan timezone UTC</td>
+                </tr>
+                <tr>
+                    <td><strong>Nama Pelanggan</strong></td>
+                    <td>Budi Santoso</td>
+                    <td>✅ Ya</td>
+                    <td>Nama lengkap pelanggan</td>
+                </tr>
+                <tr>
+                    <td><strong>Nomor WA</strong></td>
+                    <td>+62812345678</td>
+                    <td>✅ Ya</td>
+                    <td>Mulai dengan +62, tanpa spasi/titik</td>
+                </tr>
+                <tr>
+                    <td><strong>Catatan</strong></td>
+                    <td>Gerigi</td>
+                    <td>❌ Tidak</td>
+                    <td>Catatan tambahan (boleh kosong)</td>
+                </tr>
+                <tr>
+                    <td><strong>Status</strong></td>
+                    <td>pending</td>
+                    <td>✅ Ya</td>
+                    <td>"pending" atau "confirmed"</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>📝 Contoh Data CSV</h2>
+        
+        <div class="example">Layanan,Jadwal Booking,Nama Pelanggan,Nomor WA,Catatan,Status
+Potong Rambut,Budi Santoso,+62812345678,2026-08-15T14:00:00Z,Gerigi,pending
+Facial SPA,Siti Aminah,+62812345679,2026-08-16T10:00:00Z,,confirmed
+Jasa Service AC,Pak Joko,+6281334455667,2026-08-17T09:00:00Z,Mohon pagi hari,pending</div>
+
+        <h2>🔧 Cara Membuat File CSV</h2>
+        
+        <ol>
+            <li><strong>Metode 1 - Excel/Google Sheets (Recommended):</strong>
+                <ul>
+                    <li>Buka Microsoft Excel atau Google Sheets</li>
+                    <li>Salin data dari tabel di atas sebagai contoh</li>
+                    <li>Klik File > Save As / Download</li>
+                    <li>Pilih format <code>CSV (Comma delimited)</code></li>
+                    <li>Simpan dengan nama <em>template_booking.csv</em></li>
+                </ul>
+            </li>
+            
+            <li><strong>Metode 2 - Text Editor:</strong>
+                <ul>
+                    <li>Buka Notepad atau text editor apa saja</li>
+                    <li>Paste contoh data di atas</li>
+                    <li>Simpan dengan <code>Save as type: All Files</code></li>
+                    <li>Namai file: <code>template_booking.csv</code></li>
+                    <li>Ensure encoding is UTF-8</li>
+                </ul>
+            </li>
+        </ol>
+
+        <h2>⚠️ Aturan Penting</h2>
+        
+        <div class="note">
+            <ul>
+                <li>✅ Gunakan koma (<code>,</code>) sebagai pemisah antar kolom</li>
+                <li>✅ Nomor WA harus dimulai dengan <code>+62</code></li>
+                <li>✅ Format tanggal harus ISO 8601: <code>YYYY-MM-DDTHH:MM:SSZ</code></li>
+                <li>✅ Status hanya boleh: <code>pending</code> atau <code>confirmed</code></li>
+                <li>✅ Jika ada nilai mengandung koma, gunakan tanda kutip: <code>"Layanan dengan Spasi"</code></li>
+                <li>❌ JANGAN upload file gambar (.png, .jpg, dll)</li>
+                <li>❌ JANGAN upload file Excel (.xlsx) langsung</li>
+            </ul>
+        </div>
+
+        <h2>🎯 Cara Upload ke Aplikasi</h2>
+        
+        <ol>
+            <li>Login ke dashboard Senja CS</li>
+            <li>Buka halaman <strong>Booking</strong></li>
+            <li>Klik tombol <strong>Import CSV</strong></li>
+            <li>Pilih file template_booking.csv yang sudah disiapkan</li>
+            <li>Tunggu proses import selesai</li>
+            <li>Lihat hasilnya di daftar booking</li>
+        </ol>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <button onclick="downloadTemplate()">
+                📥 Download Template CSV
+            </button>
+        </div>
+
+        <div class="success">
+            💡 <strong>Tip:</strong> Setelah download, buka file dengan Notepad untuk memastikan formatnya benar sebelum upload ke aplikasi.
+        </div>
+    </div>
+
+    <script>
+        function downloadTemplate() {
+            // Create CSV content with BOM for Excel compatibility
+            const csvContent = "\uFEFFLayanan,Jadwal Booking,Nama Pelanggan,Nomor WA,Catatan,Status\n" +
+                "Potong Rambut,Budi Santoso,+62812345678,2026-08-15T14:00:00Z,Gerigi,pending\n" +
+                "Facial SPA,Siti Aminah,+62812345679,2026-08-16T10:00:00Z,,confirmed\n" +
+                "Jasa Service AC,Pak Joko,+6281334455667,2026-08-17T09:00:00Z,Mohon pagi hari,pending";
+            
+            // Create blob and download link
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'template_booking_utf8.csv');
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            alert('✅ Template berhasil didownload!\n\nFile: template_booking_utf8.csv\n\nTips:\n- Buka dengan Notepad untuk cek format\n- Atau buka dengan Excel lalu Save as CSV\n- Pastikan encoding UTF-8');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+- generic [active] [ref=f1e1]:
+  - button "Open Next.js Dev Tools" [ref=f1e7] [cursor=pointer]
+  - alert [ref=f1e11]
+  - generic [ref=f1e12]:
+    - complementary [ref=f1e13]:
+      - generic [ref=f1e15]:
+        - link "S" [ref=f1e16] [cursor=pointer]:
+          - /url: /
+        - generic [ref=f1e17]:
+          - generic [ref=f1e18]: Warung Senja
+          - generic [ref=f1e19]: WA terhubung
+        - generic [ref=f1e21]:
+          - button "1" [ref=f1e23]
+          - button "Perkecil Sidebar" [ref=f1e28]
+      - navigation [ref=f1e32]:
+        - link "Dashboard" [ref=f1e33] [cursor=pointer]:
+          - /url: /dashboard
+        - link "Inbox" [ref=f1e42] [cursor=pointer]:
+          - /url: /inbox
+        - link "Analytics AI" [ref=f1e48] [cursor=pointer]:
+          - /url: /analytics
+        - link "Kontak" [ref=f1e53] [cursor=pointer]:
+          - /url: /contacts
+        - link "Pesanan" [ref=f1e61] [cursor=pointer]:
+          - /url: /orders
+        - link "Booking" [ref=f1e67] [cursor=pointer]:
+          - /url: /bookings
+        - link "Broadcast" [ref=f1e72] [cursor=pointer]:
+          - /url: /campaigns
+        - link "Katalog" [ref=f1e78] [cursor=pointer]:
+          - /url: /catalog
+        - link "Knowledge" [ref=f1e85] [cursor=pointer]:
+          - /url: /knowledge
+        - link "Bot AI" [ref=f1e90] [cursor=pointer]:
+          - /url: /bot
+        - link "WhatsApp" [ref=f1e96] [cursor=pointer]:
+          - /url: /channels
+        - link "Tim" [ref=f1e101] [cursor=pointer]:
+          - /url: /team
+        - link "Pengaturan" [ref=f1e109] [cursor=pointer]:
+          - /url: /settings
+      - generic [ref=f1e115]:
+        - generic [ref=f1e116]:
+          - generic [ref=f1e117]: Masuk sebagai
+          - generic [ref=f1e118]: Sari
+          - generic [ref=f1e119]: owner
+        - button "Keluar" [ref=f1e120]
+    - main [ref=f1e125]:
+      - generic [ref=f1e127]:
+        - generic [ref=f1e128]:
+          - generic [ref=f1e129]:
+            - heading "Halo, Warung Senja" [level=1] [ref=f1e130]
+            - paragraph [ref=f1e131]: Ringkasan customer service & analitik transaksi WhatsApp.
+          - link [ref=f1e132] [cursor=pointer]:
+            - /url: /inbox
+            - button "Buka inbox" [ref=f1e133]
+        - generic [ref=f1e137]:
+          - generic [ref=f1e138]: API live
+          - generic [ref=f1e140]: 32 pesan hari ini
+        - generic [ref=f1e143]:
+          - generic [ref=f1e145]:
+            - generic [ref=f1e146]: Chat terbuka
+            - generic [ref=f1e152]: "2"
+            - paragraph [ref=f1e153]: perlu perhatian
+          - generic [ref=f1e155]:
+            - generic [ref=f1e156]: Menunggu agent
+            - generic [ref=f1e164]: "0"
+            - paragraph [ref=f1e165]: antrian human
+          - generic [ref=f1e167]:
+            - generic [ref=f1e168]: Diselesaikan bot
+            - generic [ref=f1e174]: 0%
+            - paragraph [ref=f1e175]: tanpa handover
+          - generic [ref=f1e177]:
+            - generic [ref=f1e178]: First response
+            - generic [ref=f1e184]: 7s
+            - paragraph [ref=f1e185]: median first reply hari ini
+        - generic [ref=f1e186]:
+          - generic [ref=f1e187]:
+            - heading "Tren Chat & Omzet (7 Hari)" [level=2] [ref=f1e188]
+            - paragraph [ref=f1e189]: Perbandingan chat WA masuk vs transaksi lunas per hari.
+            - generic [ref=f1e190]:
+              - generic [ref=f1e191]: Sel, 4 Agu
+              - generic [ref=f1e196]: Rab, 5 Agu
+              - generic [ref=f1e201]: Kam, 6 Agu
+              - generic [ref=f1e206]: Jum, 7 Agu
+              - generic [ref=f1e211]: Sab, 8 Agu
+              - generic [ref=f1e216]: Min, 9 Agu
+              - generic [ref=f1e221]: Sen, 10 Agu
+            - generic [ref=f1e226]:
+              - generic [ref=f1e227]: Chat Masuk
+              - generic [ref=f1e229]: Omzet (Paid)
+          - generic [ref=f1e231]:
+            - heading "Funnel Konversi Chat ➔ Sales" [level=2] [ref=f1e232]
+            - paragraph [ref=f1e233]: Tahapan konversi dari percakapan masuk hingga pembayaran.
+            - generic [ref=f1e234]:
+              - generic [ref=f1e236]:
+                - generic [ref=f1e237]: Pesan WA Masuk
+                - generic [ref=f1e238]: 3 (100%)
+              - generic [ref=f1e242]:
+                - generic [ref=f1e243]: Ditangani AI Bot
+                - generic [ref=f1e244]: 3 (100%)
+              - generic [ref=f1e248]:
+                - generic [ref=f1e249]: Draf Order Dibuat
+                - generic [ref=f1e250]: 9 (300%)
+              - generic [ref=f1e254]:
+                - generic [ref=f1e255]: Lunas (Paid)
+                - generic [ref=f1e256]: 7 (233%)
+        - generic [ref=f1e259]:
+          - generic [ref=f1e260]:
+            - generic [ref=f1e261]:
+              - heading "Aktivitas terbaru" [level=2] [ref=f1e262]
+              - link "Lihat semua" [ref=f1e263] [cursor=pointer]:
+                - /url: /inbox
+            - generic [ref=f1e264]:
+              - generic [ref=f1e265]:
+                - generic [ref=f1e266]:
+                  - generic [ref=f1e267]:
+                    - generic [ref=f1e268]: Farid
+                    - generic [ref=f1e269]: Bot
+                  - paragraph [ref=f1e270]: "Waduh, mohon maaf sekali kak Farid 🙏 Harusnya Anda terima 5 jus alpukat, tapi yang datang malah es teh ya? Ini kesalahan kami. Kami akan segera koordinasi dengan tim untuk: 1. Kirimkan 5 jus alpuka"
+                - generic [ref=f1e271]: 1 jam
+              - generic [ref=f1e272]:
+                - generic [ref=f1e273]:
+                  - generic [ref=f1e274]:
+                    - generic [ref=f1e275]: Farid
+                    - generic [ref=f1e276]: Bot
+                  - paragraph [ref=f1e277]: "✅ *Pembayaran diterima* *Warung Senja* · No: 23A067 Halo *Farid*, Terima kasih, pembayaran *Rp390.000* sudah kami teri"
+                - generic [ref=f1e278]: 1 jam
+              - generic [ref=f1e279]:
+                - generic [ref=f1e280]:
+                  - generic [ref=f1e281]:
+                    - generic [ref=f1e282]: Farid
+                    - generic [ref=f1e283]: Selesai
+                  - paragraph [ref=f1e284]: "✅ *Pembayaran diterima* *Warung Senja* · No: 9HRKSD Halo *Farid*, Terima kasih, pembayaran *Rp25.000* sudah kami terim"
+                - generic [ref=f1e285]: 8 Agu
+          - generic [ref=f1e286]:
+            - heading "Leaderboard Performa Agen" [level=2] [ref=f1e287]
+            - paragraph [ref=f1e288]: Agen CS paling aktif menyelesaikan chat pelanggan.
+            - generic [ref=f1e289]:
+              - generic [ref=f1e290]:
+                - generic [ref=f1e291]:
+                  - generic [ref=f1e292]: "#1"
+                  - generic [ref=f1e293]:
+                    - generic [ref=f1e294]: Sari
+                    - generic [ref=f1e295]: owner
+                - generic [ref=f1e296]:
+                  - generic [ref=f1e297]: 0 Chat Selesai
+                  - generic [ref=f1e298]: Rata-rata ~45s reply
+              - generic [ref=f1e299]:
+                - generic [ref=f1e300]:
+                  - generic [ref=f1e301]: "#2"
+                  - generic [ref=f1e302]:
+                    - generic [ref=f1e303]: Budi
+                    - generic [ref=f1e304]: agent
+                - generic [ref=f1e305]:
+                  - generic [ref=f1e306]: 0 Chat Selesai
+                  - generic [ref=f1e307]: Rata-rata ~45s reply

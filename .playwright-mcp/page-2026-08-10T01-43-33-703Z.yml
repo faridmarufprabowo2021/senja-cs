@@ -1,0 +1,21 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - link "S" [ref=e5] [cursor=pointer]:
+      - /url: /
+    - heading "Masuk ke Senja CS" [level=1] [ref=e6]
+    - paragraph [ref=e7]: Inbox, bot, dan knowledge untuk toko Anda
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: Email
+      - textbox [ref=e11]: sari@warungsenja.id
+    - generic [ref=e12]:
+      - generic [ref=e13]: Password
+      - textbox [ref=e14]: demo1234
+    - button "Masuk" [ref=e15]
+  - paragraph [ref=e16]:
+    - text: "Demo: sari@warungsenja.id / demo1234"
+    - link "Daftar UMKM" [ref=e17] [cursor=pointer]:
+      - /url: /onboarding
+    - text: ·
+    - link "Beranda" [ref=e18] [cursor=pointer]:
+      - /url: /

@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cs
+      POSTGRES_PASSWORD: cs_secret
+      POSTGRES_DB: customer_service
+    ports:
+      - "5434:5432"
+    platform: linux/amd64
+    volumes:
+      - cs_pg:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+
+  openwa:
+    image: openwa/wa-automate:latest
+    restart: unless-stopped
+    init: true
+    shm_size: '2gb'
+    ports:
+      - "8008:8008"
+    environment:
+      - PORT=8008
+      - API_KEY=senja_cs_openwa_secret
+      - WA_PORT=8008
+      - WA_API_KEY=senja_cs_openwa_secret
+      - WA_DISABLE_SPINS=true
+      - WA_IN_DOCKER=true
+    volumes:
+      - openwa_sessions:/usr/src/app/sessions
+
+volumes:
+  cs_pg:
+  openwa_sessions:

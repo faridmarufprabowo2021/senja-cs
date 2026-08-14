@@ -1,0 +1,386 @@
+import { prisma } from "../lib/prisma.js";
+import { hub } from "../ws/hub.js";
+import { mapMessage, mapConversation } from "../lib/mappers.js";
+import type { IWaDriver, WaSendMediaOptions } from "./types.js";
+import { BaileysDriver } from "./drivers/baileys.driver.js";
+import { OpenWaDriver } from "./drivers/openwa.driver.js";
+
+type SessionRuntime = {
+  driver: IWaDriver;
+  tenantId: string;
+  sessionId: string;
+  engine: "baileys" | "openwa";
+  qr?: string;
+};
+
+class WaManager {
+  private activeDrivers = new Map<string, SessionRuntime>();
+
+  get(sessionId: string) {
+    const runtime = this.activeDrivers.get(sessionId);
+    if (!runtime) return undefined;
+    return {
+      ...runtime,
+      qr: runtime.driver.qr,
+    };
+  }
+
+  listActive(tenantId: string) {
+    return [...this.activeDrivers.values()].filter((s) => s.tenantId === tenantId);
+  }
+
+  /**
+   * Driver Factory: Instantiates BaileysDriver or OpenWaDriver based on Prisma DB session engine.
+   */
+  private createDriver(
+    engine: "baileys" | "openwa",
+    tenantId: string,
+    sessionId: string,
+  ): IWaDriver {
+    const handleInboundBound = (msg: any) =>
+      this.handleInbound(tenantId, sessionId, msg);
+
+    if (engine === "openwa") {
+      return new OpenWaDriver(tenantId, sessionId, handleInboundBound);
+    }
+    return new BaileysDriver(tenantId, sessionId, handleInboundBound);
+  }
+
+  async resetAuth(sessionId: string) {
+    const runtime = this.activeDrivers.get(sessionId);
+    if (runtime) {
+      await runtime.driver.resetAuth();
+      this.activeDrivers.delete(sessionId);
+    } else {
+      const dbSession = await prisma.waSession.findUnique({
+        where: { id: sessionId },
+      });
+      if (dbSession) {
+        const driver = this.createDriver(
+          dbSession.engine ?? "baileys",
+          dbSession.tenantId,
+          sessionId,
+        );
+        await driver.resetAuth();
+      }
+    }
+  }
+
+  async start(
+    tenantId: string,
+    sessionId: string,
+    opts?: { forceQr?: boolean; engine?: "baileys" | "openwa" },
+  ) {
+    let runtime = this.activeDrivers.get(sessionId);
+
+    // If engine selection changed or forceQr is set, stop previous driver
+    if (runtime && (opts?.forceQr || (opts?.engine && opts.engine !== runtime.engine))) {
+      await this.stop(sessionId, true);
+      runtime = undefined;
+    }
+
+    if (!runtime) {
+      const dbSession = await prisma.waSession.findUnique({
+        where: { id: sessionId },
+      });
+      const engine = opts?.engine || dbSession?.engine || "baileys";
+
+      // Save engine choice if changed
+      if (dbSession && dbSession.engine !== engine) {
+        await prisma.waSession.update({
+          where: { id: sessionId },
+          data: { engine },
+        });
+      }
+
+      const driver = this.createDriver(engine, tenantId, sessionId);
+      runtime = { driver, tenantId, sessionId, engine };
+      this.activeDrivers.set(sessionId, runtime);
+    }
+
+    await runtime.driver.start(opts);
+    return runtime;
+  }
+
+  async stop(sessionId: string, logout = false) {
+    const runtime = this.activeDrivers.get(sessionId);
+    if (runtime) {
+      const res = await runtime.driver.stop(logout);
+      this.activeDrivers.delete(sessionId);
+      return res;
+    }
+
+    return prisma.waSession.update({
+      where: { id: sessionId },
+      data: {
+        status: "disconnected",
+        ...(logout ? { phoneE164: null } : {}),
+      },
+    });
+  }
+
+  async ensureDriver(sessionId: string): Promise<IWaDriver> {
+    let runtime = this.activeDrivers.get(sessionId);
+    if (!runtime) {
+      const row = await prisma.waSession.findUnique({ where: { id: sessionId } });
+      if (row && row.status !== "disconnected") {
+        await this.start(row.tenantId, sessionId, { engine: row.engine });
+        for (let i = 0; i < 20; i++) {
+          runtime = this.activeDrivers.get(sessionId);
+          if (runtime?.driver) break;
+          await new Promise((r) => setTimeout(r, 150));
+        }
+      }
+    }
+    runtime = this.activeDrivers.get(sessionId);
+    if (!runtime?.driver) {
+      throw new Error(
+        "WhatsApp belum terhubung. Buka menu Channels → Hubungkan / scan QR, lalu coba lagi.",
+      );
+    }
+    return runtime.driver;
+  }
+
+  async sendText(sessionId: string, jid: string, text: string) {
+    const driver = await this.ensureDriver(sessionId);
+    return driver.sendText(jid, text);
+  }
+
+  async sendImage(
+    sessionId: string,
+    jid: string,
+    opts: string | { buffer: Buffer; caption?: string; mimetype?: string },
+    captionText?: string,
+  ) {
+    const driver = await this.ensureDriver(sessionId);
+
+    if (typeof opts === "string") {
+      const imageUrl = opts;
+      const caption = captionText;
+      try {
+        const res = await fetch(imageUrl);
+        const arrayBuf = await res.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+        const contentType = res.headers.get("content-type") || "image/jpeg";
+
+        return driver.sendMedia(jid, {
+          buffer,
+          caption,
+          mimetype: contentType,
+          fileName: "broadcast-image.jpg",
+          isImage: true,
+        });
+      } catch (err) {
+        console.warn(`[waManager] Failed to fetch image buffer from URL ${imageUrl}, falling back to text message`, err);
+        const fallbackText = caption ? `${caption}\n\n🖼️ Brosur: ${imageUrl}` : imageUrl;
+        return driver.sendText(jid, fallbackText);
+      }
+    }
+
+    return driver.sendMedia(jid, {
+      buffer: opts.buffer,
+      caption: opts.caption,
+      mimetype: opts.mimetype || "image/jpeg",
+      fileName: "image.jpg",
+      isImage: true,
+    });
+  }
+
+  async sendDocument(
+    sessionId: string,
+    jid: string,
+    opts: {
+      buffer: Buffer;
+      fileName: string;
+      mimetype?: string;
+      caption?: string;
+    },
+  ) {
+    const driver = await this.ensureDriver(sessionId);
+    return driver.sendMedia(jid, {
+      buffer: opts.buffer,
+      fileName: opts.fileName,
+      mimetype: opts.mimetype || "application/octet-stream",
+      caption: opts.caption,
+      isImage: false,
+    });
+  }
+
+  async sendMedia(
+    sessionId: string,
+    jid: string,
+    opts: {
+      buffer: Buffer;
+      mimetype: string;
+      fileName: string;
+      caption?: string;
+      isImage: boolean;
+    },
+  ) {
+    const driver = await this.ensureDriver(sessionId);
+    return driver.sendMedia(jid, opts);
+  }
+
+  public async handleInbound(
+    tenantId: string,
+    sessionId: string,
+    msg: any,
+  ) {
+    // Normalization logic for inbound payload (Baileys or OpenWA webhook body)
+    if (msg.key?.fromMe || msg.fromMe) return;
+    const jid = msg.key?.remoteJid || msg.from || msg.chatId;
+    if (!jid || jid.endsWith("@g.us") || jid === "status@broadcast") return;
+
+    const body =
+      msg.message?.conversation ||
+      msg.message?.extendedTextMessage?.text ||
+      msg.message?.imageMessage?.caption ||
+      msg.message?.documentMessage?.caption ||
+      msg.body ||
+      msg.caption ||
+      "";
+    const hasImage = Boolean(msg.message?.imageMessage || msg.type === "image");
+    const hasDoc = Boolean(msg.message?.documentMessage || msg.type === "document");
+    if (!body && !hasImage && !hasDoc) return;
+
+    const waMessageId = msg.key?.id || msg.id || `${Date.now()}`;
+    const phone = jid.split("@")[0] ?? jid;
+    const pushName = msg.pushName || msg.sender?.pushname || phone;
+    const now = new Date();
+
+    const existing = await prisma.message.findUnique({
+      where: {
+        tenantId_waMessageId: { tenantId, waMessageId },
+      },
+    });
+    if (existing) return;
+
+    let mediaMeta: {
+      mediaUrl?: string;
+      mimeType?: string;
+      fileName?: string;
+    } = {};
+    let msgType: "text" | "image" | "document" = "text";
+    if (hasImage) msgType = "image";
+    else if (hasDoc) msgType = "document";
+
+    const preview =
+      body ||
+      (msgType === "image" ? "[gambar]" : msgType === "document" ? "[dokumen]" : "[media]");
+
+    const contact = await prisma.contact.upsert({
+      where: {
+        tenantId_waJid: { tenantId, waJid: jid },
+      },
+      create: {
+        tenantId,
+        waJid: jid,
+        phone: `+${phone.replace(/\D/g, "")}`,
+        name: pushName,
+        avatarHue: Math.floor(Math.random() * 360),
+        lastMessageAt: now,
+      },
+      update: {
+        name: pushName,
+        lastMessageAt: now,
+      },
+    });
+
+    let conversation = await prisma.conversation.findFirst({
+      where: {
+        tenantId,
+        contactId: contact.id,
+        waSessionId: sessionId,
+        status: { not: "resolved" },
+      },
+      orderBy: { lastMessageAt: "desc" },
+    });
+
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
+        data: {
+          tenantId,
+          contactId: contact.id,
+          waSessionId: sessionId,
+          status: "bot_active",
+          mode: "bot",
+          lastMessagePreview: preview,
+          lastMessageAt: now,
+          unreadCount: 1,
+        },
+      });
+    } else {
+      conversation = await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessagePreview: preview,
+          lastMessageAt: now,
+          unreadCount: { increment: 1 },
+          status:
+            conversation.status === "resolved"
+              ? "bot_active"
+              : conversation.status === "new"
+                ? "bot_active"
+                : conversation.status,
+        },
+      });
+    }
+
+    let message;
+    try {
+      message = await prisma.message.create({
+        data: {
+          tenantId,
+          conversationId: conversation.id,
+          direction: "in",
+          senderType: "customer",
+          senderName: pushName,
+          type: msgType,
+          body: body || preview,
+          waMessageId,
+          metadata: mediaMeta,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        console.info(`[waManager] Duplicate waMessageId ${waMessageId} ignored cleanly`);
+        return;
+      }
+      throw err;
+    }
+
+    const full = await prisma.conversation.findUniqueOrThrow({
+      where: { id: conversation.id },
+      include: { contact: true, assignee: true },
+    });
+
+    hub.toTenant(tenantId, "message.created", mapMessage(message));
+    hub.toTenant(tenantId, "conversation.updated", mapConversation(full));
+
+    if (!body) return;
+
+    const settings = await prisma.botSettings.findUnique({
+      where: { tenantId },
+    });
+    const botOn = settings?.enabled !== false;
+    const humanTookOver = full.status === "assigned";
+
+    if (botOn && !humanTookOver && full.status !== "resolved") {
+      if (full.mode !== "bot" || full.status === "waiting_agent") {
+        const reset = await prisma.conversation.update({
+          where: { id: full.id },
+          data: { mode: "bot", status: "bot_active" },
+          include: { contact: true, assignee: true },
+        });
+        hub.toTenant(tenantId, "conversation.updated", mapConversation(reset));
+      }
+      const { scheduleBotReply } = await import("../bot/reply.js");
+      scheduleBotReply(full.id);
+    } else if (full.mode === "bot") {
+      const { scheduleBotReply } = await import("../bot/reply.js");
+      scheduleBotReply(full.id);
+    }
+  }
+}
+
+export const waManager = new WaManager();

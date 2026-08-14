@@ -1,0 +1,736 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantRole {
+  owner
+  admin
+  agent
+}
+
+enum MemberStatus {
+  active
+  invited
+  disabled
+}
+
+enum ConversationStatus {
+  new
+  bot_active
+  waiting_agent
+  assigned
+  resolved
+}
+
+enum ConversationMode {
+  bot
+  human
+}
+
+enum MessageDirection {
+  in
+  out
+}
+
+enum SenderType {
+  customer
+  bot
+  agent
+  system
+}
+
+enum MessageType {
+  text
+  image
+  audio
+  document
+  system
+}
+
+enum WaEngineType {
+  baileys
+  openwa
+}
+
+enum WaSessionStatus {
+  pending
+  qr
+  connected
+  disconnected
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  name         String
+  passwordHash String
+  isSuperAdmin Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  members      TenantMember[]
+  assigned     Conversation[] @relation("AssignedAgent")
+  messages     Message[]      @relation("AgentMessages")
+}
+
+enum KnowledgeDocStatus {
+  processing
+  ready
+  failed
+}
+
+/// UMKM toko/F&B vs klinik/salon/jasa (booking later)
+enum WorkspaceVertical {
+  commerce
+  booking
+}
+
+enum OrderStatus {
+  draft
+  confirmed
+  paid
+  done
+  cancelled
+}
+
+model Tenant {
+  id            String               @id @default(cuid())
+  name          String
+  slug          String               @unique
+  plan          String               @default("starter")
+  planExpiresAt DateTime?
+  /// commerce = toko/F&B; booking = klinik/salon/jasa
+  vertical      WorkspaceVertical    @default(commerce)
+  /// B1 — instruksi bayar manual (bukan payment gateway)
+  payBank       String               @default("")
+  payAccount    String               @default("")
+  payAccountName String              @default("")
+  payNote       String               @default("")
+  /// Custom Payment Gateway Midtrans milik Tenant
+  midtransServerKey    String        @default("")
+  midtransClientKey    String        @default("")
+  midtransMerchantId   String        @default("")
+  midtransIsProduction Boolean       @default(false)
+  /// Instagram Integration Credentials
+  igAccessToken        String?
+  igPageId             String?
+  igUserId             String?
+  igConnected          Boolean       @default(false)
+  createdAt     DateTime             @default(now())
+  members       TenantMember[]
+  waSessions    WaSession[]
+  contacts      Contact[]
+  conversations Conversation[]
+  messages      Message[]
+  botSettings   BotSettings?
+  aiAgents      AiAgent[]
+  knowledgeDocs KnowledgeDocument[]
+  knowledgeChunks KnowledgeChunk[]
+  products      Product[]
+  orders        Order[]
+  bookings      Booking[]
+  campaigns     Campaign[]
+  subscriptions SubscriptionTransaction[]
+  analytics     ConversationAnalytics[]
+  notifications Notification[]
+  conversationFlows ConversationFlow[]
+  reminderRules ReminderRule[]
+  reminderLogs  ReminderLog[]
+  aiCorrections AiCorrection[]
+  instagramCommentRules InstagramCommentRule[]
+  pipelines     Pipeline[]
+  pipelineDeals PipelineDeal[]
+  promos        PromoVoucher[]
+  broadcastTemplates BroadcastTemplate[]
+}
+
+enum SubscriptionStatus {
+  pending
+  paid
+  failed
+}
+
+model SubscriptionTransaction {
+  id              String             @id @default(cuid())
+  tenantId        String
+  plan            String
+  amount          Int
+  status          SubscriptionStatus @default(pending)
+  snapToken       String?
+  snapRedirectUrl String?
+  createdAt       DateTime           @default(now())
+  paidAt          DateTime?
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  tenantId    String
+  name        String
+  description String      @default("")
+  price       Int         @default(0)
+  stock       Int?
+  unit        String      @default("pcs")
+  active      Boolean     @default(true)
+  imageUrl    String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+
+  @@index([tenantId, active])
+  @@index([tenantId, name])
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  tenantId   String
+  contactId  String
+  status     OrderStatus @default(draft)
+  total          Int         @default(0)
+  note           String      @default("")
+  followupSentAt DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact    Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  items      OrderItem[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, contactId])
+  @@index([tenantId, createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  qty       Int     @default(1)
+  price     Int     @default(0)
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+}
+
+model TenantMember {
+  id       String       @id @default(cuid())
+  tenantId String
+  userId   String
+  role     TenantRole   @default(agent)
+  status   MemberStatus @default(active)
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+}
+
+model WaSession {
+  id         String          @id @default(cuid())
+  tenantId   String
+  engine     WaEngineType    @default(baileys)
+  label      String          @default("Nomor utama")
+  phoneE164  String?
+  status     WaSessionStatus @default(pending)
+  errorCode  String?
+  lastSeenAt DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@index([tenantId])
+}
+
+model Contact {
+  id            String         @id @default(cuid())
+  tenantId      String
+  waJid         String
+  phone         String
+  name          String
+  avatarHue     Int            @default(160)
+  tags          String[]       @default([])
+  lastMessageAt DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  orders        Order[]
+  bookings      Booking[]
+  campaignRecipients CampaignRecipient[]
+  pipelineDeals PipelineDeal[]
+
+  @@unique([tenantId, waJid])
+  @@index([tenantId])
+}
+
+model Conversation {
+  id                 String             @id @default(cuid())
+  tenantId           String
+  contactId          String
+  waSessionId        String?
+  channel            String             @default("whatsapp")
+  status             ConversationStatus @default(new)
+  mode               ConversationMode   @default(bot)
+  assignedTo         String?
+  unreadCount        Int                @default(0)
+  lastMessagePreview String             @default("")
+  lastMessageAt      DateTime           @default(now())
+  followupSentAt     DateTime?
+  followupStageCount Int                @default(0)
+  aiAgentId          String?
+  resolvedAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact            Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  waSession          WaSession?         @relation(fields: [waSessionId], references: [id], onDelete: SetNull)
+  aiAgent            AiAgent?           @relation(fields: [aiAgentId], references: [id], onDelete: SetNull)
+  assignee           User?              @relation("AssignedAgent", fields: [assignedTo], references: [id], onDelete: SetNull)
+  messages           Message[]
+  analytics          ConversationAnalytics?
+  pipelineDeals      PipelineDeal[]
+
+  @@index([tenantId, status, lastMessageAt])
+  @@index([tenantId, assignedTo])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  tenantId       String
+  conversationId String
+  channel        String           @default("whatsapp")
+  direction      MessageDirection
+  senderType     SenderType
+  senderId       String?
+  senderName     String?
+  type           MessageType      @default(text)
+  body           String
+  waMessageId    String?
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  agent          User?            @relation("AgentMessages", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, waMessageId])
+  @@index([conversationId, createdAt])
+  @@index([tenantId])
+}
+
+model BotSettings {
+  tenantId              String   @id
+  enabled               Boolean  @default(true)
+  systemPrompt          String   @default("Kamu CS WhatsApp. Jawab singkat, ramah, Bahasa Indonesia. Hanya gunakan konteks knowledge. Jika tidak tahu, tawarkan hubungi agent.")
+  confidenceThreshold   Float    @default(0.15)
+  handoverKeywords      String[] @default(["cs", "admin", "human", "agent", "manusia"])
+  maxBotTurns           Int      @default(8)
+  model                 String   @default("claude-sonnet-4.5")
+  /// Outside hours: bot sends awayMessage once, no LLM
+  businessHoursEnabled  Boolean  @default(false)
+  businessHoursStart    String   @default("08:00")
+  businessHoursEnd      String   @default("22:00")
+  businessHoursTz       String   @default("Asia/Jakarta")
+  awayMessage           String   @default("Terima kasih sudah menghubungi kami. Saat ini di luar jam operasional (08.00–22.00 WIB). Kami balas secepatnya di jam buka ya.")
+  quickReplies          String[] @default(["Halo, ada yang bisa kami bantu?", "Mohon ditunggu sebentar ya.", "Pesanan Anda sedang kami proses.", "Silakan transfer ke rekening yang tertera, lalu kirim bukti ya."])
+  
+  /// Reminder Settings H-1
+  reminderEnabled       Boolean  @default(true)
+  reminderWindowStartHours Int   @default(30)     // Kirim 30 jam sebelum booking
+  reminderWindowEndHours Int    @default(18)     // Sampai 18 jam sebelum booking
+  reminderTemplate      String   @default("⏰ *Pengingat Jadwal Reservasi*\n\nHalo *{name}*,\nSekadar mengingatkan jadwal reservasi *{service}* Anda pada *{date}* besok.\n\n📌 *Catatan*: Mohon hadir 15 menit sebelum jam tindakan.\nJika ada perubahan jadwal, silakan balas chat ini ya. Terima kasih! 🙏")
+  
+  /// Shipping Origin Location (Kota / Kecamatan Asal Pengiriman)
+  shippingOrigin        String   @default("Surakarta")
+
+  /// Cancellation Deadline in hours before appointment
+  cancelDeadlineHours   Int      @default(2)
+  tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model AiAgent {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  name                String   @default("Utama CS Agent")
+  description         String   @default("")
+  avatarUrl           String?
+  enabled             Boolean  @default(true)
+  isDefault           Boolean  @default(false)
+  systemPrompt        String   @default("Kamu CS WhatsApp & Instagram. Jawab singkat, ramah, Bahasa Indonesia. Hanya gunakan konteks knowledge. Jika tidak tahu, tawarkan hubungi agent.") @db.Text
+  welcomeMessage      String   @default("Halo! Selamat datang di layanan pelanggan kami. Ada yang bisa saya bantu hari ini? 😊")
+  welcomeImageUrl     String?
+  model               String   @default("claude-sonnet-4.5")
+  confidenceThreshold Float    @default(0.15)
+  handoverKeywords    String[] @default(["cs", "admin", "human", "agent", "manusia"])
+  cancelDeadlineHours Int      @default(2)
+  transferConditions  String?  @default("Pengalihan otomatis ke CS jika pelanggan meminta bantuan manusia atau terdeteksi komplain berat.") @db.Text
+  
+  // Auto Follow-Up Engine Settings (Multi-Stage & AI Dynamic)
+  followupEnabled       Boolean  @default(false)
+  followupAiDynamic     Boolean  @default(true)
+  followupDelayMinutes  Int      @default(15)
+  followupMessage       String   @default("Halo Kak, apakah ada yang ingin ditanyakan lagi terkait pesanan/booking tadi? 😊 Kami siap bantu jika Kakak ingin lanjut.")
+  followupStage2Enabled Boolean  @default(false)
+  followupStage2DelayMinutes Int @default(1440)
+  followupStage2Message String   @default("Halo Kak, khusus hari ini kami ada penawaran spesial voucher diskon jika Kakak ingin menyelesaikan reservasi/pesanan kemarin. Mau kami bantu proses sekarang? 😊")
+  
+  // Binding ke Session WA atau Channel IG spesifik
+  waSessionId         String?
+  channel             String   @default("all") // "whatsapp" | "instagram" | "all"
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations       Conversation[]
+  knowledgeDocs       KnowledgeDocument[]
+  
+  @@index([tenantId])
+}
+
+model KnowledgeDocument {
+  id         String             @id @default(cuid())
+  tenantId   String
+  aiAgentId  String?
+  title      String
+  sourceType String             @default("txt")
+  status     KnowledgeDocStatus @default(processing)
+  storageKey   String?
+  fileUrl      String?
+  imageUrl     String?
+  imageName    String?
+  imageCaption String?
+  error        String?
+  chunkCount Int                @default(0)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  aiAgent    AiAgent?           @relation(fields: [aiAgentId], references: [id], onDelete: SetNull)
+  chunks     KnowledgeChunk[]
+
+  @@index([tenantId, status])
+}
+
+model KnowledgeChunk {
+  id         String            @id @default(cuid())
+  tenantId   String
+  documentId String
+  content    String
+  tokenCount Int               @default(0)
+  /// JSON number[] embedding (portable; no pgvector required)
+  embedding  Json?
+  metadata   Json?
+  createdAt  DateTime          @default(now())
+  document   KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([documentId])
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  cancelled
+  completed
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  tenantId    String
+  contactId   String
+  serviceName String
+  bookingDate DateTime
+  note           String        @default("")
+  status         BookingStatus @default(pending)
+  reminderSentAt DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact     Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, bookingDate])
+  @@index([tenantId, contactId])
+}
+
+enum CampaignStatus {
+  draft
+  running
+  completed
+  cancelled
+  failed
+}
+
+model Campaign {
+  id              String              @id @default(cuid())
+  tenantId        String
+  name            String
+  message         String
+  imageUrl        String?
+  targetTag       String?
+  status          CampaignStatus      @default(draft)
+  delayMinSec     Int                 @default(5)
+  delayMaxSec     Int                 @default(15)
+  totalCount      Int                 @default(0)
+  sentCount       Int                 @default(0)
+  failedCount     Int                 @default(0)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  recipients      CampaignRecipient[]
+
+  @@index([tenantId, status])
+}
+
+model CampaignRecipient {
+  id         String   @id @default(cuid())
+  campaignId String
+  contactId  String
+  status     String   @default("pending")
+  sentAt     DateTime?
+  error      String?
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, status])
+}
+
+model BroadcastTemplate {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  message     String   @db.Text
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model ConversationAnalytics {
+  id             String   @id @default(cuid())
+  conversationId String   @unique
+  tenantId       String
+  sentiment      String   // "positive" | "neutral" | "negative"
+  sentimentScore Float    // -1.0 to 1.0
+  intentCategory String   // "inquiry" | "booking" | "order" | "complaint" | "support"
+  summary        String?  @db.Text
+  isConverted    Boolean  @default(false)
+  revenue        Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([sentiment])
+  @@index([intentCategory])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  tenantId  String
+  type      String   // "payment_received" | "ai_handover" | "system"
+  title     String
+  message   String
+  link      String?
+  metadata  Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isRead, createdAt])
+}
+
+model ConversationFlow {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  isActive    Boolean  @default(false)
+  
+  nodesJson   Json     @default("[]")
+  edgesJson   Json     @default("[]")
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  executionLogs FlowExecutionLog[]
+
+  @@index([tenantId])
+}
+
+model FlowExecutionLog {
+  id             String           @id @default(cuid())
+  flowId         String
+  flow           ConversationFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  conversationId String
+  status         String           // "success" | "failed" | "handover"
+  currentNodeId  String?
+  logsJson       Json             // Telemetry execution trace
+  createdAt      DateTime         @default(now())
+
+  @@index([flowId])
+  @@index([conversationId])
+}
+
+enum ReminderTriggerType {
+  UNPAID_INVOICE
+  BOOKING_SCHEDULE
+  CUSTOM_FOLLOWUP
+}
+
+model ReminderRule {
+  id              String              @id @default(cuid())
+  tenantId        String
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name            String
+  triggerType     ReminderTriggerType @default(UNPAID_INVOICE)
+  delayMinutes    Int                 @default(60)
+  messageTemplate String
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  logs            ReminderLog[]
+
+  @@index([tenantId])
+}
+
+model ReminderLog {
+  id           String       @id @default(cuid())
+  tenantId     String
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ruleId       String?
+  rule         ReminderRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  recipientName String
+  phone        String
+  message      String
+  status       String       // "PENDING" | "SENT" | "FAILED"
+  errorMessage String?
+  scheduledAt  DateTime     @default(now())
+  sentAt       DateTime?
+  createdAt    DateTime     @default(now())
+
+  @@index([tenantId])
+  @@index([ruleId])
+}
+
+model AiCorrection {
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversationId String
+  messageId      String
+  userQuery      String
+  originalBotReply String
+  correctedReply String
+  rating         Int      @default(1) // 1-5 rating or 1 for negative correction
+  feedbackNote   String?
+  createdById    String?
+  createdByName  String   @default("Supervisor")
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([conversationId])
+}
+
+model InstagramCommentRule {
+  id               String   @id @default(cuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String
+  active           Boolean  @default(true)
+  targetPostId     String?  // null = semua postingan/reels
+  keywords         String   // "mau,info,harga,promo" atau "*"
+  publicReplyText  String?  // "Cek DM kamu ya kak! 😊"
+  privateReplyText String   // Pesan DM awal
+  flowId           String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model Pipeline {
+  id        String          @id @default(cuid())
+  tenantId  String
+  name      String          @default("Default Sales Pipeline")
+  isDefault Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stages    PipelineStage[]
+  deals     PipelineDeal[]
+
+  @@index([tenantId])
+}
+
+model PipelineStage {
+  id         String         @id @default(cuid())
+  pipelineId String
+  name       String
+  color      String         @default("#3b82f6")
+  orderIndex Int            @default(0)
+  autoRules  String?        // Kriteria AI intent (misal: "lead_inbound", "qualification", "proposal", "closing")
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  pipeline   Pipeline       @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals      PipelineDeal[]
+
+  @@index([pipelineId, orderIndex])
+}
+
+model PipelineDeal {
+  id             String        @id @default(cuid())
+  tenantId       String
+  pipelineId     String
+  stageId        String
+  contactId      String
+  conversationId String?
+  title          String
+  amount         Int           @default(0)
+  status         String        @default("open") // "open" | "won" | "lost"
+  lastAiReason   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pipeline       Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stage          PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  contact        Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, stageId])
+  @@index([contactId])
+}
+
+model PromoVoucher {
+  id             String   @id @default(cuid())
+  tenantId       String
+  code           String
+  title          String
+  description    String   @default("")
+  discountAmount Int      @default(0)
+  discountPercent Int     @default(0)
+  minSpend       Int      @default(0)
+  validUntil     String   @default("Berlaku Setiap Saat")
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, active])
+}
+
+
+
+
