@@ -9,6 +9,7 @@ import {
   Hand,
   MoreHorizontal,
   Paperclip,
+  PhoneCall,
   Search,
   Send,
   Sparkles,
@@ -137,6 +138,57 @@ function MessageBubble({
               src={mediaUrl(message.metadata.mediaUrl)}
               className="w-full max-w-[240px] h-8"
             />
+          </div>
+        ) : null}
+        {message.type === "call_summary" || message.metadata?.callSummary ? (
+          <div className="mb-2 p-3 rounded-2xl bg-gradient-to-br from-indigo-50/90 to-purple-50/90 border border-indigo-200/80 shadow-xs">
+            <div className="flex items-center justify-between gap-2 border-b border-indigo-200/60 pb-2 mb-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
+                <PhoneCall className="h-4 w-4 text-indigo-600" />
+                <span>
+                  {message.metadata?.callSummary?.isMissedCall
+                    ? "📞 Panggilan Tak Terjawab"
+                    : "📞 WhatsApp Call AI Summary"}
+                </span>
+              </div>
+              {message.metadata?.callSummary?.durationSec ? (
+                <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded-full">
+                  {Math.floor(message.metadata.callSummary.durationSec / 60)}m{" "}
+                  {message.metadata.callSummary.durationSec % 60}s
+                </span>
+              ) : null}
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div>
+                <span className="font-bold text-indigo-950 block mb-0.5">📝 Ringkasan AI:</span>
+                <p className="text-indigo-900 leading-snug">
+                  {message.metadata?.callSummary?.summary || message.body}
+                </p>
+              </div>
+
+              {message.metadata?.callSummary?.keyTakeaways?.length ? (
+                <div>
+                  <span className="font-bold text-indigo-950 block mb-0.5">📌 Poin-Poin Penting:</span>
+                  <ul className="list-disc list-inside space-y-0.5 text-indigo-800 text-[11px]">
+                    {message.metadata.callSummary.keyTakeaways.map((item, idx) => (
+                      <li key={idx}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {message.metadata?.callSummary?.actionItems?.length ? (
+                <div>
+                  <span className="font-bold text-indigo-950 block mb-0.5">⚡ Tindakan Lanjutan:</span>
+                  <ul className="list-disc list-inside space-y-0.5 text-purple-900 text-[11px] font-medium">
+                    {message.metadata.callSummary.actionItems.map((action, idx) => (
+                      <li key={idx}>{action}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
           </div>
         ) : null}
         {message.metadata?.mediaUrl && message.type === "document" ? (
