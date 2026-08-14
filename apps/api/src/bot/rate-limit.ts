@@ -4,7 +4,7 @@ type Bucket = { times: number[] };
 
 const buckets = new Map<string, Bucket>();
 
-const MAX_PER_MINUTE = 30;
+const MAX_PER_MINUTE = 300;
 const WINDOW_MS = 60_000;
 
 export function allowBotReply(tenantId: string): boolean {
