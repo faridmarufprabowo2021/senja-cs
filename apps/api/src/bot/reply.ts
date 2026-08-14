@@ -164,7 +164,9 @@ export async function runBotReply(conversationId: string) {
   const systemPromptToUse = activeAgent?.systemPrompt || settings.systemPrompt;
   const transferConditionsToUse = activeAgent?.transferConditions || null;
 
-  const body = lastIn.body.trim();
+  const lastInMeta = (lastIn.metadata as Record<string, any>) || {};
+  const effectiveUserText = lastInMeta.transcript || lastInMeta.imageAnalysis || lastIn.body;
+  const body = effectiveUserText.trim();
   const kw = matchHandoverKeyword(body, handoverKeywordsToUse);
   if (kw) {
     await escalate(

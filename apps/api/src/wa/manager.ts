@@ -1,6 +1,8 @@
 import { prisma } from "../lib/prisma.js";
 import { hub } from "../ws/hub.js";
 import { mapMessage, mapConversation } from "../lib/mappers.js";
+import { transcribeAudio } from "../lib/transcribe.js";
+import { analyzeImage } from "../lib/vision.js";
 import type { IWaDriver, WaSendMediaOptions } from "./types.js";
 import { BaileysDriver } from "./drivers/baileys.driver.js";
 import { OpenWaDriver } from "./drivers/openwa.driver.js";
@@ -241,7 +243,8 @@ class WaManager {
       "";
     const hasImage = Boolean(msg.message?.imageMessage || msg.type === "image");
     const hasDoc = Boolean(msg.message?.documentMessage || msg.type === "document");
-    if (!body && !hasImage && !hasDoc) return;
+    const hasAudio = Boolean(msg.message?.audioMessage || msg.type === "audio" || msg.type === "ptt");
+    if (!body && !hasImage && !hasDoc && !hasAudio) return;
 
     const waMessageId = msg.key?.id || msg.id || `${Date.now()}`;
     const phone = jid.split("@")[0] ?? jid;
@@ -259,14 +262,18 @@ class WaManager {
       mediaUrl?: string;
       mimeType?: string;
       fileName?: string;
+      transcript?: string;
+      imageAnalysis?: string;
     } = {};
-    let msgType: "text" | "image" | "document" = "text";
+    let msgType: "text" | "image" | "document" | "audio" = "text";
     if (hasImage) msgType = "image";
     else if (hasDoc) msgType = "document";
+    else if (hasAudio) msgType = "audio";
 
-    const preview =
+    let messageBody = body;
+    let preview =
       body ||
-      (msgType === "image" ? "[gambar]" : msgType === "document" ? "[dokumen]" : "[media]");
+      (msgType === "image" ? "[gambar]" : msgType === "document" ? "[dokumen]" : msgType === "audio" ? "[pesan suara]" : "[media]");
 
     const contact = await prisma.contact.upsert({
       where: {
@@ -336,7 +343,7 @@ class WaManager {
           senderType: "customer",
           senderName: pushName,
           type: msgType,
-          body: body || preview,
+          body: messageBody || preview,
           waMessageId,
           metadata: mediaMeta,
         },
