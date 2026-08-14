@@ -455,6 +455,9 @@ class WaManager {
             const imageAnalysis = await analyzeImage(mediaBuffer, mimeType);
             console.info("[waManager] Image Analysis Result:", imageAnalysis);
             mediaMeta.imageAnalysis = imageAnalysis;
+            const caption = (msg.message?.imageMessage?.caption || msg.caption || "").trim();
+            messageBody = caption ? `${caption}\n[Analisis Visual AI: ${imageAnalysis}]` : `[Foto Dikirim Pelanggan - Analisis Visual AI: ${imageAnalysis}]`;
+            preview = `📷 ${imageAnalysis.slice(0, 100)}`;
           }
         }
       } catch (mediaErr) {
@@ -550,7 +553,8 @@ class WaManager {
     hub.toTenant(tenantId, "message.created", mapMessage(message));
     hub.toTenant(tenantId, "conversation.updated", mapConversation(full));
 
-    if (!messageBody) return;
+    const effectiveTriggerText = (messageBody || mediaMeta?.imageAnalysis || mediaMeta?.transcript || "").trim();
+    if (!effectiveTriggerText) return;
 
     const settings = await prisma.botSettings.findUnique({
       where: { tenantId },
