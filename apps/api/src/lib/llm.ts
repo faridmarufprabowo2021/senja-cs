@@ -92,66 +92,104 @@ export async function chatComplete(
   model?: string,
   tools?: any[],
 ): Promise<ChatCompleteResponse> {
-  if (!hasLlm) {
-    console.warn("chatComplete: no LLM_API_KEY — extractive fallback");
+  const primaryApiKey = env.LLM_API_KEY;
+  const groqApiKey = env.GROQ_API_KEY;
+
+  if (!primaryApiKey && !groqApiKey) {
+    console.warn("chatComplete: no LLM_API_KEY or GROQ_API_KEY — extractive fallback");
     return { content: extractiveAnswer(messages) };
   }
 
-  const useModel = (model && model.trim()) || env.LLM_CHAT_MODEL;
+  const requestedModel = (model && model.trim()) || env.LLM_CHAT_MODEL;
 
-  try {
-    const base = env.LLM_BASE_URL.replace(/\/$/, "");
-    const bodyPayload: any = {
-      model: useModel,
-      messages,
-      temperature: 0.4,
-      max_tokens: 500,
-    };
+  // Attempt 1: Try Primary Provider (OpenAgentic / Custom Gateway) if API key exists
+  if (primaryApiKey) {
+    try {
+      const base = env.LLM_BASE_URL.replace(/\/$/, "");
+      const bodyPayload: any = {
+        model: requestedModel,
+        messages,
+        temperature: 0.4,
+        max_tokens: 500,
+      };
 
-    if (tools && tools.length > 0) {
-      bodyPayload.tools = tools.map((t) => ({
-        type: "function",
-        function: t,
-      }));
+      if (tools && tools.length > 0) {
+        bodyPayload.tools = tools.map((t) => ({
+          type: "function",
+          function: t,
+        }));
+      }
+
+      const res = await fetch(`${base}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${primaryApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bodyPayload),
+      });
+      const rawBody = await res.text();
+
+      if (res.ok) {
+        const parsed = parseChatResponseBody(rawBody);
+        if (parsed.ok && (parsed.content || (parsed.toolCalls && parsed.toolCalls.length > 0))) {
+          return {
+            content: parsed.content,
+            toolCalls: parsed.toolCalls,
+          };
+        }
+      }
+      console.warn("[llm] Primary LLM API failed, failing over to Groq:", res.status, rawBody.slice(0, 150));
+    } catch (err) {
+      console.warn("[llm] Primary LLM fetch error, failing over to Groq:", err);
     }
-
-    const res = await fetch(`${base}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.LLM_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(bodyPayload),
-    });
-    const rawBody = await res.text();
-
-    if (!res.ok) {
-      console.warn(
-        "chat API failed, extractive fallback",
-        res.status,
-        useModel,
-        rawBody.slice(0, 400),
-      );
-      return { content: extractiveAnswer(messages) };
-    }
-
-    const parsed = parseChatResponseBody(rawBody);
-    if (!parsed.ok || (!parsed.content && (!parsed.toolCalls || parsed.toolCalls.length === 0))) {
-      console.warn(
-        "chat API parse/empty, extractive fallback",
-        parsed.parseError,
-        rawBody.slice(0, 200),
-      );
-      return { content: extractiveAnswer(messages) };
-    }
-    return {
-      content: parsed.content,
-      toolCalls: parsed.toolCalls,
-    };
-  } catch (err) {
-    console.warn("chat error, extractive fallback", err);
-    return { content: extractiveAnswer(messages) };
   }
+
+  // Attempt 2: Auto Failover to Groq API (High-Speed Llama 3.3 70B) if Groq key exists
+  if (groqApiKey) {
+    try {
+      const groqModel = "llama-3.3-70b-versatile";
+      const bodyPayload: any = {
+        model: groqModel,
+        messages,
+        temperature: 0.4,
+        max_tokens: 600,
+      };
+
+      if (tools && tools.length > 0) {
+        bodyPayload.tools = tools.map((t) => ({
+          type: "function",
+          function: t,
+        }));
+      }
+
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${groqApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bodyPayload),
+      });
+      const rawBody = await res.text();
+
+      if (res.ok) {
+        const parsed = parseChatResponseBody(rawBody);
+        if (parsed.ok && (parsed.content || (parsed.toolCalls && parsed.toolCalls.length > 0))) {
+          return {
+            content: parsed.content,
+            toolCalls: parsed.toolCalls,
+          };
+        }
+      }
+      console.warn("[llm] Groq LLM failover failed:", res.status, rawBody.slice(0, 150));
+    } catch (groqErr) {
+      console.warn("[llm] Groq LLM failover fetch error:", groqErr);
+    }
+  }
+
+  // Attempt 3: Final Extractive Knowledge Base Fallback
+  return { content: extractiveAnswer(messages) };
 }
 
 /** Offline fallback: return best context chunk as short reply. */
