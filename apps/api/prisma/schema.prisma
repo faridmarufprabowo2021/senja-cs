@@ -49,6 +49,7 @@ enum MessageType {
   image
   audio
   document
+  call_summary
   system
 }
 

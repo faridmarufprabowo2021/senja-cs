@@ -307,7 +307,7 @@ class WaManager {
         direction: "in",
         senderType: "customer",
         senderName: pushName,
-        type: "call_summary",
+        type: "call_summary" as any,
         body: `📞 Panggilan WhatsApp: ${summaryData.summary}`,
         waMessageId,
         metadata: {
