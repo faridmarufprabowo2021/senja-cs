@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth, requireTenant } from "../lib/auth.js";
-import { analyzeConversation } from "../bot/analytics.js";
+import { analyzeConversation, generateTenantExecutiveInsights } from "../bot/analytics.js";
 
 export async function analyticsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireAuth);
@@ -149,5 +149,19 @@ export async function analyticsRoutes(app: FastifyInstance) {
     const record = await analyzeConversation(id);
     if (!record) return reply.code(400).send({ error: "Gagal memproses analisis percakapan" });
     return { ok: true, data: record };
+  });
+
+  // 4. GET /api/v1/analytics/insights - AI Key Insights, Recommendations, and Top FAQ Intelligence
+  app.get("/insights", async (request) => {
+    const tenantId = request.tenant.tenantId;
+    const data = await generateTenantExecutiveInsights(tenantId);
+    return { ok: true, data };
+  });
+
+  // 5. POST /api/v1/analytics/insights/regenerate - Trigger fresh LLM executive report generation
+  app.post("/insights/regenerate", async (request) => {
+    const tenantId = request.tenant.tenantId;
+    const data = await generateTenantExecutiveInsights(tenantId);
+    return { ok: true, data };
   });
 }

@@ -23,6 +23,7 @@ import { api } from "@/lib/api";
 import { useRealtime } from "@/lib/use-realtime";
 import { Button, Card, PageHeader } from "@/components/ui";
 import { AnalyticsCharts } from "@/components/AnalyticsCharts";
+import { AiExecutiveInsights, ExecutiveInsightsData } from "@/components/AiExecutiveInsights";
 
 type AnalyticsOverview = {
   ok: boolean;
@@ -68,7 +69,9 @@ type AnalyzedConversation = {
 export default function AnalyticsPage() {
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
   const [conversations, setConversations] = useState<AnalyzedConversation[]>([]);
+  const [insights, setInsights] = useState<ExecutiveInsightsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingInsights, setLoadingInsights] = useState(true);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [intentFilter, setIntentFilter] = useState<string>("all");
@@ -89,19 +92,32 @@ export default function AnalyticsPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadingInsights(true);
     try {
-      const [ov, convs] = await Promise.all([
+      const [ov, convs, ins] = await Promise.all([
         api<AnalyticsOverview>("/analytics/overview"),
         api<{ ok: boolean; data: AnalyzedConversation[] }>("/analytics/conversations"),
+        api<{ ok: boolean; data: ExecutiveInsightsData }>("/analytics/insights").catch(() => null),
       ]);
       setOverview(ov);
       setConversations(convs.data || []);
+      if (ins?.data) setInsights(ins.data);
     } catch {
       /* ignore */
     } finally {
       setLoading(false);
+      setLoadingInsights(false);
     }
   }, []);
+
+  const handleRegenerateInsights = async () => {
+    try {
+      const res = await api<{ ok: boolean; data: ExecutiveInsightsData }>("/analytics/insights/regenerate", { method: "POST" });
+      if (res.data) setInsights(res.data);
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     void loadData();
@@ -195,6 +211,13 @@ export default function AnalyticsPage() {
         <>
           {/* Visual Trend Charts (Omset & CSAT Donut) */}
           <AnalyticsCharts overview={overview} />
+
+          {/* AI Conversation Analysis (Key Insights, AI Recommendations, & Top FAQs) */}
+          <AiExecutiveInsights
+            data={insights}
+            loading={loadingInsights}
+            onRegenerate={handleRegenerateInsights}
+          />
 
           {/* KPI Summary Cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
