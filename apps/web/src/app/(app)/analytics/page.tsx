@@ -6,9 +6,11 @@ import {
   BarChart3,
   CheckCircle2,
   DollarSign,
+  Filter,
   HelpCircle,
   MessageSquare,
   RefreshCw,
+  Search,
   ShoppingBag,
   Smile,
   Sparkles,
@@ -68,6 +70,22 @@ export default function AnalyticsPage() {
   const [conversations, setConversations] = useState<AnalyzedConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [sentimentFilter, setSentimentFilter] = useState<string>("all");
+  const [intentFilter, setIntentFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const filteredConversations = conversations.filter((c) => {
+    if (sentimentFilter !== "all" && c.sentiment !== sentimentFilter) return false;
+    if (intentFilter !== "all" && c.intentCategory !== intentFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = c.contactName.toLowerCase().includes(q);
+      const matchPhone = c.contactPhone.toLowerCase().includes(q);
+      const matchSummary = c.summary.toLowerCase().includes(q);
+      return matchName || matchPhone || matchSummary;
+    }
+    return true;
+  });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -388,24 +406,105 @@ export default function AnalyticsPage() {
             </Card>
           </div>
 
-          {/* Conversations Table */}
+          {/* Conversations Table with Sentiment & Intent Filters */}
           <Card className="overflow-hidden">
-            <div className="border-b border-[var(--color-line)] p-5">
-              <h3 className="text-base font-bold text-[var(--color-text)]">
-                Daftar Percakapan Teranalisis AI
-              </h3>
-              <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-                Hasil penilaian sentimen, rangkuman otomatis AI, dan status transaksi per pelanggan.
-              </p>
+            <div className="border-b border-[var(--color-line)] p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-[var(--color-text)]">
+                    Daftar Percakapan Teranalisis AI
+                  </h3>
+                  <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                    Hasil penilaian sentimen, rangkuman otomatis AI, dan status transaksi per pelanggan.
+                  </p>
+                </div>
+
+                {/* Search Input */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cari pelanggan / rangkuman..."
+                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-1.5 text-xs outline-none focus:border-purple-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Filter Pills Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                {/* Sentiment Filter Pills */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { id: "all", label: "Semua Sentimen", count: conversations.length },
+                    { id: "positive", label: "🟢 Positif (Puas)", count: conversations.filter((c) => c.sentiment === "positive").length },
+                    { id: "neutral", label: "⚪ Netral", count: conversations.filter((c) => c.sentiment === "neutral").length },
+                    { id: "negative", label: "🔴 Negatif (Komplain)", count: conversations.filter((c) => c.sentiment === "negative").length },
+                  ].map((tab) => {
+                    const active = sentimentFilter === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setSentimentFilter(tab.id)}
+                        className={`rounded-full px-3 py-1 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          active
+                            ? "bg-slate-900 text-white shadow-xs"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        <span>{tab.label}</span>
+                        <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${active ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"}`}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Intent Filter Dropdown */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                    <Filter className="h-3.5 w-3.5 text-purple-600" /> Intensi:
+                  </span>
+                  <select
+                    value={intentFilter}
+                    onChange={(e) => setIntentFilter(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-800 outline-none focus:border-purple-500 cursor-pointer"
+                  >
+                    <option value="all">Semua Intensi</option>
+                    <option value="inquiry">Tanya Informasi</option>
+                    <option value="booking">Reservasi / Booking</option>
+                    <option value="order">Pembelian Produk</option>
+                    <option value="complaint">Keluhan & Komplain</option>
+                    <option value="support">Bantuan Umum</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
-            {conversations.length === 0 ? (
+            {filteredConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-12 text-center text-[var(--color-muted)]">
                 <MessageSquare className="mb-3 h-10 w-10 text-slate-300" />
-                <p className="text-base font-semibold text-[var(--color-text)]">Belum ada percakapan teranalisis</p>
+                <p className="text-base font-semibold text-[var(--color-text)]">Percakapan Tidak Ditemukan</p>
                 <p className="mt-1 text-xs max-w-sm">
-                  Analisis sentimen AI akan otomatis memproses percakapan saat pesan WA masuk.
+                  Tidak ada percakapan teranalisis yang sesuai dengan filter sentimen atau pencarian yang dipilih.
                 </p>
+                {(sentimentFilter !== "all" || intentFilter !== "all" || searchQuery) && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="mt-3"
+                    onClick={() => {
+                      setSentimentFilter("all");
+                      setIntentFilter("all");
+                      setSearchQuery("");
+                    }}
+                  >
+                    Reset Filter
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -421,7 +520,7 @@ export default function AnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--color-line)]">
-                    {conversations.map((c) => (
+                    {filteredConversations.map((c) => (
                       <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-5 py-4">
                           <div className="font-medium text-[var(--color-text)]">{c.contactName}</div>
