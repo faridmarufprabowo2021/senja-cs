@@ -107,14 +107,30 @@ export async function runBotReply(conversationId: string) {
     return;
   }
 
-  const botTurns = chronological.filter((m) => m.senderType === "bot").length;
-  if (botTurns >= settings.maxBotTurns) {
+  // Calculate bot turns in the current active turn
+  const lastCustomerIdx = chronological.map((m) => m.senderType).lastIndexOf("customer");
+  const activeTurnBotTurns = lastCustomerIdx >= 0
+    ? chronological.slice(lastCustomerIdx).filter((m) => m.senderType === "bot").length
+    : 0;
+
+  if (activeTurnBotTurns >= (settings.maxBotTurns || 15)) {
     await escalate(
       conversation.id,
       "Batas balasan bot tercapai. Menghubungkan ke agent…",
       { escalateReason: "max_turns", preferredRole: "agent" },
     );
     return;
+  }
+
+  // Send Centang 2 Biru (Read Receipt) & "mengetik..." presence status NOW as AI starts generating
+  if (conversation.waSessionId && conversation.contact.waJid) {
+    const { waManager } = await import("../wa/manager.js");
+    void waManager.sendPresence(conversation.waSessionId, conversation.contact.waJid, "composing");
+    if (lastIn.waMessageId) {
+      void waManager.readMessage(conversation.waSessionId, [
+        { id: lastIn.waMessageId, remoteJid: conversation.contact.waJid },
+      ]);
+    }
   }
 
   // Fetch active AI Agents for this tenant (AI Orchestrator Engine)

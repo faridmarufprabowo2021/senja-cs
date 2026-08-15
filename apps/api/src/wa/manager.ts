@@ -421,14 +421,6 @@ class WaManager {
       }
     }
 
-    // Send Centang 2 Biru (Read Receipt) immediately
-    if (msg.key) {
-      void this.readMessage(sessionId, [msg.key]);
-    }
-
-    // Send "mengetik..." presence indicator to customer
-    void this.sendPresence(sessionId, jid, "composing");
-
     const body =
       msg.message?.conversation ||
       msg.message?.extendedTextMessage?.text ||
