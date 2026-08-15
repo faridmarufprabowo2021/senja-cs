@@ -110,7 +110,10 @@ export class BaileysDriver implements IWaDriver {
     });
 
     const { state, saveCreds } = await useMultiFileAuthState(this.authDir());
-    const { version } = await fetchLatestBaileysVersion();
+    const { version } = await fetchLatestBaileysVersion().catch((err) => {
+      console.warn("[wa-baileys] fetchLatestBaileysVersion failed, using fallback version:", err);
+      return { version: [2, 3000, 1015901307] as [number, number, number] };
+    });
 
     this.socket = makeWASocket({
       version,
@@ -193,8 +196,9 @@ export class BaileysDriver implements IWaDriver {
     this.socket.ev.on("messages.upsert", async (payload: any) => {
       const messages = payload?.messages ?? [];
       const type = payload?.type;
-      if (type !== "notify") return;
+      console.info("[wa-baileys] messages.upsert received, type:", type, "count:", messages.length);
       for (const msg of messages) {
+        console.info("[wa-baileys] message item key:", JSON.stringify(msg.key), "pushName:", msg.pushName);
         await this.handleInbound(msg).catch((err) => {
           console.error("[wa-baileys] inbound error", err);
         });

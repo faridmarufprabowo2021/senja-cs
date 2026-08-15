@@ -394,10 +394,14 @@ class WaManager {
     sessionId: string,
     msg: any,
   ) {
+    const jid = msg.key?.remoteJid || msg.from || msg.chatId;
+    console.info(`[waManager] handleInbound called for tenant: ${tenantId}, jid: ${jid}, fromMe: ${msg.key?.fromMe}`);
     // Normalization logic for inbound payload (Baileys or OpenWA webhook body)
     if (msg.key?.fromMe || msg.fromMe) return;
-    const jid = msg.key?.remoteJid || msg.from || msg.chatId;
-    if (!jid || jid.endsWith("@g.us") || jid === "status@broadcast") return;
+    if (!jid || jid.endsWith("@g.us") || jid === "status@broadcast") {
+      console.info(`[waManager] Ignored JID: ${jid} (group or status)`);
+      return;
+    }
 
     // Send Centang 2 Biru (Read Receipt) immediately
     if (msg.key) {
@@ -418,7 +422,12 @@ class WaManager {
     const hasImage = Boolean(msg.message?.imageMessage || msg.type === "image");
     const hasDoc = Boolean(msg.message?.documentMessage || msg.type === "document");
     const hasAudio = Boolean(msg.message?.audioMessage || msg.type === "audio" || msg.type === "ptt");
-    if (!body && !hasImage && !hasDoc && !hasAudio) return;
+    if (!body && !hasImage && !hasDoc && !hasAudio) {
+      console.info("[waManager] Ignored message without text body/media:", JSON.stringify(msg.message));
+      return;
+    }
+
+    console.info(`[waManager] Processing inbound message from ${jid}: "${body}"`);
 
     const waMessageId = msg.key?.id || msg.id || `${Date.now()}`;
     const phone = jid.split("@")[0] ?? jid;

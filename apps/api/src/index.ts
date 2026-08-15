@@ -14,7 +14,7 @@ try {
   const { prisma } = await import("./lib/prisma.js");
   const { waManager } = await import("./wa/manager.js");
   const sessions = await prisma.waSession.findMany({
-    where: { status: "connected" },
+    where: { status: { in: ["connected", "pending", "qr"] } },
     take: 50,
   });
   for (const s of sessions) {
