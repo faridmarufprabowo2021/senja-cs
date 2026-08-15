@@ -19,9 +19,12 @@ export function LandingHeader() {
 
         {/* Navigation Links */}
         <nav className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
-          <Link href="/use-cases" className="text-teal-700 font-bold hover:text-teal-800 transition-colors flex items-center gap-1">
-            <span>Contoh Penggunaan</span>
-            <span className="rounded bg-teal-100 text-teal-800 px-1.5 py-0.5 text-[10px] uppercase font-mono">New</span>
+          <Link href="/features" className="text-sky-600 font-bold hover:text-sky-700 transition-colors flex items-center gap-1">
+            <span>Katalog Fitur</span>
+            <span className="rounded bg-sky-100 text-sky-800 px-1.5 py-0.5 text-[10px] uppercase font-mono">Hub</span>
+          </Link>
+          <Link href="/use-cases" className="hover:text-teal-600 transition-colors">
+            Contoh Penggunaan
           </Link>
           <a href="/#fitur" className="hover:text-teal-600 transition-colors">Fitur Utama</a>
           <a href="/#engine" className="hover:text-teal-600 transition-colors">Dual Engine</a>
@@ -47,3 +50,5 @@ export function LandingHeader() {
     </header>
   );
 }
+
+export { LandingHeader as Header };

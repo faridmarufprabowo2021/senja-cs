@@ -46,3 +46,5 @@ export function LandingCtaFooter() {
     </footer>
   );
 }
+
+export { LandingCtaFooter as CtaFooter };
