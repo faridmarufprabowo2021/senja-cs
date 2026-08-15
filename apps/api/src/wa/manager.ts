@@ -394,13 +394,31 @@ class WaManager {
     sessionId: string,
     msg: any,
   ) {
-    const jid = msg.key?.remoteJid || msg.from || msg.chatId;
-    console.info(`[waManager] handleInbound called for tenant: ${tenantId}, jid: ${jid}, fromMe: ${msg.key?.fromMe}`);
+    const rawJid = msg.key?.remoteJid || msg.from || msg.chatId;
+    console.info(`[waManager] handleInbound called for tenant: ${tenantId}, jid: ${rawJid}, fromMe: ${msg.key?.fromMe}`);
     // Normalization logic for inbound payload (Baileys or OpenWA webhook body)
     if (msg.key?.fromMe || msg.fromMe) return;
-    if (!jid || jid.endsWith("@g.us") || jid === "status@broadcast") {
-      console.info(`[waManager] Ignored JID: ${jid} (group or status)`);
+    if (!rawJid || rawJid.endsWith("@g.us") || rawJid === "status@broadcast" || rawJid.endsWith("@newsletter")) {
+      console.info(`[waManager] Ignored JID: ${rawJid} (group, status, or newsletter)`);
       return;
+    }
+
+    // Extract real PN JID if this is an @lid message
+    let jid = rawJid;
+    const senderPn = msg.key?.participant_pn || msg.sender_pn || msg.participant_pn || msg.key?.remoteJidAlt;
+    const pushName = (msg.pushName || msg.sender?.pushname || "").trim();
+
+    if (jid.endsWith("@lid")) {
+      if (senderPn && senderPn.endsWith("@s.whatsapp.net")) {
+        jid = senderPn;
+      } else if (pushName) {
+        const matchByName = await prisma.contact.findFirst({
+          where: { tenantId, name: pushName, waJid: { endsWith: "@s.whatsapp.net" } },
+        });
+        if (matchByName) {
+          jid = matchByName.waJid;
+        }
+      }
     }
 
     // Send Centang 2 Biru (Read Receipt) immediately
@@ -431,7 +449,7 @@ class WaManager {
 
     const waMessageId = msg.key?.id || msg.id || `${Date.now()}`;
     const phone = jid.split("@")[0] ?? jid;
-    const pushName = msg.pushName || msg.sender?.pushname || phone;
+    const displayName = pushName || phone;
     const now = new Date();
 
     const existing = await prisma.message.findUnique({
@@ -509,23 +527,37 @@ class WaManager {
       }
     }
 
-    const contact = await prisma.contact.upsert({
+    // Deduplicate contact: search by waJid or name
+    let contact = await prisma.contact.findFirst({
       where: {
-        tenantId_waJid: { tenantId, waJid: jid },
-      },
-      create: {
         tenantId,
-        waJid: jid,
-        phone: `+${phone.replace(/\D/g, "")}`,
-        name: pushName,
-        avatarHue: Math.floor(Math.random() * 360),
-        lastMessageAt: now,
-      },
-      update: {
-        name: pushName,
-        lastMessageAt: now,
+        OR: [
+          { waJid: jid },
+          ...(pushName ? [{ name: pushName, waJid: { endsWith: "@s.whatsapp.net" } }] : []),
+        ],
       },
     });
+
+    if (!contact) {
+      contact = await prisma.contact.create({
+        data: {
+          tenantId,
+          waJid: jid,
+          phone: `+${phone.replace(/\D/g, "")}`,
+          name: displayName,
+          avatarHue: Math.floor(Math.random() * 360),
+          lastMessageAt: now,
+        },
+      });
+    } else {
+      contact = await prisma.contact.update({
+        where: { id: contact.id },
+        data: {
+          name: displayName || contact.name,
+          lastMessageAt: now,
+        },
+      });
+    }
 
     let conversation = await prisma.conversation.findFirst({
       where: {
