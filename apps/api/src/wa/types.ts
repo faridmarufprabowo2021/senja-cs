@@ -24,4 +24,10 @@ export interface IWaDriver {
   
   /** Send image, document, or audio media */
   sendMedia(jid: string, opts: WaSendMediaOptions): Promise<any>;
+
+  /** Send typing presence ("composing", "recording", "paused") */
+  sendPresence?(jid: string, presence: "composing" | "recording" | "paused" | "available"): Promise<any>;
+
+  /** Send read receipt / centang 2 biru */
+  readMessage?(keys: any[]): Promise<any>;
 }

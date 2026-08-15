@@ -782,6 +782,9 @@ export async function sendBotMessage(
       );
       waMessageId = sent?.key?.id ?? undefined;
 
+      // Clear "mengetik..." presence indicator after reply is sent
+      void waManager.sendPresence(conversation.waSessionId, conversation.contact.waJid, "paused");
+
       // Auto-send product media if product image exists
       const products = await prisma.product.findMany({
         where: { tenantId: conversation.tenantId, imageUrl: { not: null } },

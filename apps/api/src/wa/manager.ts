@@ -363,6 +363,32 @@ class WaManager {
     }
   }
 
+  async sendPresence(
+    sessionId: string,
+    jid: string,
+    presence: "composing" | "recording" | "paused" | "available" = "composing",
+  ) {
+    try {
+      const driver = await this.ensureDriver(sessionId);
+      if (driver.sendPresence) {
+        await driver.sendPresence(jid, presence);
+      }
+    } catch {
+      /* ignore presence errors */
+    }
+  }
+
+  async readMessage(sessionId: string, keys: any[]) {
+    try {
+      const driver = await this.ensureDriver(sessionId);
+      if (driver.readMessage) {
+        await driver.readMessage(keys);
+      }
+    } catch {
+      /* ignore read receipt errors */
+    }
+  }
+
   public async handleInbound(
     tenantId: string,
     sessionId: string,
@@ -372,6 +398,14 @@ class WaManager {
     if (msg.key?.fromMe || msg.fromMe) return;
     const jid = msg.key?.remoteJid || msg.from || msg.chatId;
     if (!jid || jid.endsWith("@g.us") || jid === "status@broadcast") return;
+
+    // Send Centang 2 Biru (Read Receipt) immediately
+    if (msg.key) {
+      void this.readMessage(sessionId, [msg.key]);
+    }
+
+    // Send "mengetik..." presence indicator to customer
+    void this.sendPresence(sessionId, jid, "composing");
 
     const body =
       msg.message?.conversation ||

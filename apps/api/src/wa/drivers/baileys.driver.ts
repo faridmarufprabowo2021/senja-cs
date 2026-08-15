@@ -286,4 +286,22 @@ export class BaileysDriver implements IWaDriver {
       caption: opts.caption,
     });
   }
+
+  async sendPresence(jid: string, presence: "composing" | "recording" | "paused" | "available" = "composing") {
+    if (!this.socket) return;
+    try {
+      await this.socket.sendPresenceUpdate(presence, jid);
+    } catch {
+      /* ignore presence errors */
+    }
+  }
+
+  async readMessage(keys: any[]) {
+    if (!this.socket || !keys?.length) return;
+    try {
+      await this.socket.readMessages(keys);
+    } catch {
+      /* ignore read receipt errors */
+    }
+  }
 }
