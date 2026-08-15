@@ -29,7 +29,7 @@ export async function followupAnalyticsRoutes(app: FastifyInstance) {
       include: {
         contact: {
           include: {
-            orders: { select: { totalAmount: true } },
+            orders: { select: { totalPrice: true } },
             bookings: { select: { id: true } },
           },
         },
@@ -42,11 +42,13 @@ export async function followupAnalyticsRoutes(app: FastifyInstance) {
     // Estimate recovered revenue (sum of order totals & bookings associated with converted contacts)
     let recoveredRevenue = 0;
     for (const c of convertedConvs) {
-      for (const order of c.contact.orders) {
-        recoveredRevenue += order.totalAmount || 0;
+      if (c.contact?.orders) {
+        for (const order of c.contact.orders) {
+          recoveredRevenue += order.totalPrice || 0;
+        }
       }
       // Add estimated booking value if no order (e.g. Rp 150.000 per booking)
-      if (c.contact.bookings.length > 0 && c.contact.orders.length === 0) {
+      if (c.contact?.bookings && c.contact.bookings.length > 0 && (!c.contact.orders || c.contact.orders.length === 0)) {
         recoveredRevenue += c.contact.bookings.length * 150000;
       }
     }
