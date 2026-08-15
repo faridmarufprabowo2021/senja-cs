@@ -2,6 +2,33 @@ import { prisma } from "../lib/prisma.js";
 import { sendBotMessage } from "./reply.js";
 import { chatComplete } from "../lib/llm.js";
 
+function isQuietHours(agent: {
+  quietHoursEnabled?: boolean;
+  quietHoursStart?: string;
+  quietHoursEnd?: string;
+  quietHoursTz?: string;
+}): boolean {
+  if (!agent.quietHoursEnabled) return false;
+  try {
+    const tz = agent.quietHoursTz || "Asia/Jakarta";
+    const nowStr = new Date().toLocaleTimeString("en-GB", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+    }); // e.g. "23:15"
+    const start = agent.quietHoursStart || "22:00";
+    const end = agent.quietHoursEnd || "08:00";
+
+    if (start < end) {
+      return nowStr >= start && nowStr < end;
+    }
+    // Midnight span (e.g. 22:00 to 08:00)
+    return nowStr >= start || nowStr < end;
+  } catch {
+    return false;
+  }
+}
+
 export async function runFollowupCheck() {
   try {
     const activeAgents = await prisma.aiAgent.findMany({
@@ -11,6 +38,11 @@ export async function runFollowupCheck() {
     if (!activeAgents.length) return;
 
     for (const agent of activeAgents) {
+      // 1. Quiet Hours (DND) Check — Skip sending late night messages to prevent WhatsApp spam flags
+      if (isQuietHours(agent)) {
+        continue;
+      }
+
       // --- STAGE 1 FOLLOW-UP (Short Delay e.g. 15-60 mins) ---
       const delayMinutes1 = agent.followupDelayMinutes || 15;
       const cutoffTime1 = new Date(Date.now() - delayMinutes1 * 60 * 1000);
@@ -19,6 +51,7 @@ export async function runFollowupCheck() {
         where: {
           tenantId: agent.tenantId,
           mode: "bot",
+          assignedTo: null, // Human Agent Guard — never follow-up if CS human agent is assigned
           status: { in: ["new", "bot_active"] },
           followupStageCount: 0,
           lastMessageAt: { lte: cutoffTime1 },
@@ -30,7 +63,9 @@ export async function runFollowupCheck() {
       });
 
       for (const conv of stage1Convs) {
-        let followupText = agent.followupMessage || "Halo Kak, apakah ada yang ingin ditanyakan lagi terkait pesanan/booking tadi? 😊";
+        let followupText =
+          agent.followupMessage ||
+          "Halo Kak, apakah ada yang ingin ditanyakan lagi terkait pesanan/booking tadi? 😊 Kami siap bantu jika Kakak ingin lanjut.";
 
         // AI Personal Dynamic Generation
         if (agent.followupAiDynamic && conv.messages.length > 0) {
@@ -45,7 +80,7 @@ Berdasarkan percakapan terakhir dengan pelanggan berikut:
 ---
 ${chatLog}
 ---
-Buatkan 1 pesan sapaan follow-up singkat (1-2 kalimat) yang ramah, alami, Bahasa Indonesia, dan mengacu pada topik/produk yang tadi ditanyakan pelanggan. Ajak mereka mengonfirmasi kembali.`;
+Buatkan 1 pesan sapaan follow-up singkat (1-2 kalimat) yang ramah, alami, Bahasa Indonesia, dan mengacu pada topik/produk/booking yang tadi ditanyakan pelanggan. Ajak mereka mengonfirmasi kembali secara santun.`;
 
             const aiRes = await chatComplete(
               [{ role: "user", content: prompt }],
@@ -79,6 +114,7 @@ Buatkan 1 pesan sapaan follow-up singkat (1-2 kalimat) yang ramah, alami, Bahasa
           where: {
             tenantId: agent.tenantId,
             mode: "bot",
+            assignedTo: null, // Human Agent Guard
             status: { in: ["new", "bot_active"] },
             followupStageCount: 1,
             lastMessageAt: { lte: cutoffTime2 },
@@ -89,8 +125,19 @@ Buatkan 1 pesan sapaan follow-up singkat (1-2 kalimat) yang ramah, alami, Bahasa
           take: 10,
         });
 
+        // Fetch active vouchers for dynamic promo injection
+        const promos = await prisma.promoVoucher.findMany({
+          where: { tenantId: agent.tenantId, active: true },
+          take: 3,
+        });
+        const promoText = promos.length > 0
+          ? `\nKode Promo Aktif: ` + promos.map(p => `${p.code} (Diskon ${p.discountPercent}%)`).join(", ")
+          : "";
+
         for (const conv of stage2Convs) {
-          let followupText = agent.followupStage2Message || "Halo Kak, khusus hari ini kami ada penawaran spesial voucher diskon jika Kakak ingin menyelesaikan reservasi/pesanan kemarin. Mau kami bantu proses sekarang? 😊";
+          let followupText =
+            agent.followupStage2Message ||
+            "Halo Kak, khusus hari ini kami ada penawaran spesial voucher diskon jika Kakak ingin menyelesaikan reservasi/pesanan kemarin. Mau kami bantu proses sekarang? 😊";
 
           if (agent.followupAiDynamic && conv.messages.length > 0) {
             try {
@@ -103,7 +150,7 @@ Buatkan 1 pesan sapaan follow-up singkat (1-2 kalimat) yang ramah, alami, Bahasa
 Berdasarkan percakapan kemarin berikut:
 ---
 ${chatLog}
----
+---${promoText}
 Buatkan 1 pesan follow-up Tahap 2 (Urgency & Special Promo) singkat (1-2 kalimat) yang memberikan penawaran voucher/diskon khusus agar pelanggan bersemangat menyelesaikan pesanan/booking kemarin.`;
 
               const aiRes = await chatComplete(
@@ -136,6 +183,7 @@ Buatkan 1 pesan follow-up Tahap 2 (Urgency & Special Promo) singkat (1-2 kalimat
         where: {
           tenantId: agent.tenantId,
           mode: "bot",
+          assignedTo: null,
           status: { in: ["new", "bot_active"] },
           followupStageCount: { gte: 1 },
           lastMessageAt: { lte: cutoff48h },

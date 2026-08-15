@@ -583,6 +583,12 @@ class WaManager {
           lastMessagePreview: preview,
           lastMessageAt: now,
           unreadCount: { increment: 1 },
+          ...(conversation.followupStageCount > 0 && !conversation.followupConvertedAt
+            ? {
+                followupConvertedAt: now,
+                followupConvertedStage: conversation.followupStageCount,
+              }
+            : {}),
         },
       });
     }

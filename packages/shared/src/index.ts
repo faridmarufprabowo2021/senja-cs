@@ -203,6 +203,10 @@ export interface AiAgent {
   followupStage2Enabled: boolean;
   followupStage2DelayMinutes: number;
   followupStage2Message: string;
+  quietHoursEnabled?: boolean;
+  quietHoursStart?: string;
+  quietHoursEnd?: string;
+  quietHoursTz?: string;
   waSessionId?: string | null;
   channel: string;
   createdAt: string;

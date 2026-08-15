@@ -282,8 +282,10 @@ model Conversation {
   unreadCount        Int                @default(0)
   lastMessagePreview String             @default("")
   lastMessageAt      DateTime           @default(now())
-  followupSentAt     DateTime?
-  followupStageCount Int                @default(0)
+  followupSentAt         DateTime?
+  followupStageCount     Int                @default(0)
+  followupConvertedAt    DateTime?
+  followupConvertedStage Int?
   aiAgentId          String?
   resolvedAt         DateTime?
   createdAt          DateTime           @default(now())
@@ -388,6 +390,12 @@ model AiAgent {
   followupStage2Enabled Boolean  @default(false)
   followupStage2DelayMinutes Int @default(1440)
   followupStage2Message String   @default("Halo Kak, khusus hari ini kami ada penawaran spesial voucher diskon jika Kakak ingin menyelesaikan reservasi/pesanan kemarin. Mau kami bantu proses sekarang? 😊")
+  
+  // Quiet Hours DND Guard
+  quietHoursEnabled     Boolean  @default(true)
+  quietHoursStart       String   @default("22:00")
+  quietHoursEnd         String   @default("08:00")
+  quietHoursTz          String   @default("Asia/Jakarta")
   
   // Binding ke Session WA atau Channel IG spesifik
   waSessionId         String?

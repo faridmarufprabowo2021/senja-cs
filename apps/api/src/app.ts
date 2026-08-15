@@ -138,6 +138,8 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   const { reminderRoutes } = await import("./routes/reminders.js");
   await app.register(reminderRoutes, { prefix: "/api/v1" });
   await app.register(wsRoutes, { prefix: "/api/v1" });
+  const { followupAnalyticsRoutes } = await import("./routes/followup-analytics.js");
+  await app.register(followupAnalyticsRoutes, { prefix: "/api/v1" });
 
   app.setErrorHandler((err, req, reply) => {
     if (err && typeof err === "object" && "issues" in err) {
