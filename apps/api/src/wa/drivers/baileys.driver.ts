@@ -1,5 +1,5 @@
 import { Boom } from "@hapi/boom";
-import baileys from "sanka-baileyss";
+import * as baileys from "sanka-baileyss";
 import path from "node:path";
 import fs from "node:fs";
 import { prisma } from "../../lib/prisma.js";
@@ -8,25 +8,12 @@ import { hub } from "../../ws/hub.js";
 import { mapWaSession } from "../../lib/mappers.js";
 import type { IWaDriver, WaSendMediaOptions } from "../types.js";
 
-// sanka-baileyss CJS ESM fallback
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const baileysMod: any =
-  (baileys as any)?.makeWASocket || (baileys as any)?.useMultiFileAuthState
-    ? baileys
-    : (baileys as any)?.default ?? baileys;
-
-const makeWASocket: (...args: any[]) => any =
-  typeof baileysMod === "function"
-    ? baileysMod
-    : baileysMod.makeWASocket ?? baileysMod.default;
-
-const DisconnectReason = baileysMod.DisconnectReason;
-const fetchLatestBaileysVersion = baileysMod.fetchLatestBaileysVersion as () => Promise<{
-  version: [number, number, number];
-}>;
-const useMultiFileAuthState = baileysMod.useMultiFileAuthState as (
-  folder: string,
-) => Promise<{ state: any; saveCreds: () => Promise<void> }>;
+// sanka-baileyss resolution
+const b: any = baileys;
+const makeWASocket = b.makeWASocket || b.default;
+const DisconnectReason = b.DisconnectReason || b.default?.DisconnectReason;
+const fetchLatestBaileysVersion = b.fetchLatestBaileysVersion || b.default?.fetchLatestBaileysVersion;
+const useMultiFileAuthState = b.useMultiFileAuthState || b.default?.useMultiFileAuthState;
 
 export class BaileysDriver implements IWaDriver {
   public qr?: string;
@@ -110,7 +97,7 @@ export class BaileysDriver implements IWaDriver {
     });
 
     const { state, saveCreds } = await useMultiFileAuthState(this.authDir());
-    const { version } = await fetchLatestBaileysVersion().catch((err) => {
+    const { version } = await fetchLatestBaileysVersion().catch((err: any) => {
       console.warn("[wa-baileys] fetchLatestBaileysVersion failed, using fallback version:", err);
       return { version: [2, 3000, 1015901307] as [number, number, number] };
     });
@@ -171,21 +158,26 @@ export class BaileysDriver implements IWaDriver {
       if (connection === "close") {
         const code = (lastDisconnect?.error as Boom | undefined)?.output
           ?.statusCode;
-        const loggedOut = code === DisconnectReason.loggedOut;
+        const loggedOut = code === DisconnectReason.loggedOut || code === 401 || code === 403;
         this.socket = null;
 
-        const session = await prisma.waSession.update({
-          where: { id: this.sessionId },
-          data: {
+        if (loggedOut) {
+          console.warn("[wa-baileys] Session logged out or auth invalid, resetting auth keys:", this.sessionId);
+          await this.resetAuth().catch(() => null);
+        } else {
+          const session = await prisma.waSession.update({
+            where: { id: this.sessionId },
+            data: {
+              status: "disconnected",
+              errorCode: code ? String(code) : "close",
+            },
+          });
+          hub.toTenant(this.tenantId, "wa.status", {
+            sessionId: this.sessionId,
             status: "disconnected",
-            errorCode: code ? String(code) : "close",
-          },
-        });
-        hub.toTenant(this.tenantId, "wa.status", {
-          sessionId: this.sessionId,
-          status: "disconnected",
-          session: mapWaSession(session),
-        });
+            session: mapWaSession(session),
+          });
+        }
 
         if (!loggedOut && !this.suppressReconnect) {
           this.scheduleReconnect();

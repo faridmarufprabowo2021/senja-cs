@@ -42,7 +42,7 @@ export async function runBotReply(conversationId: string) {
     include: { contact: true, assignee: true },
   });
   if (!conversation) return;
-  if (conversation.status === "assigned" || conversation.status === "resolved") {
+  if (conversation.status === "resolved") {
     return;
   }
 

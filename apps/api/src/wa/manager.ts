@@ -604,10 +604,8 @@ class WaManager {
       where: { tenantId },
     });
     const botOn = settings?.enabled !== false;
-    const humanTookOver = full.status === "assigned";
-
-    if (botOn && !humanTookOver && full.status !== "resolved") {
-      if (full.mode !== "bot" || full.status === "waiting_agent") {
+    if (botOn && full.status !== "resolved") {
+      if (full.mode !== "bot" || full.status === "waiting_agent" || full.status === "assigned") {
         const reset = await prisma.conversation.update({
           where: { id: full.id },
           data: { mode: "bot", status: "bot_active" },
@@ -615,9 +613,6 @@ class WaManager {
         });
         hub.toTenant(tenantId, "conversation.updated", mapConversation(reset));
       }
-      const { scheduleBotReply } = await import("../bot/reply.js");
-      scheduleBotReply(full.id);
-    } else if (full.mode === "bot") {
       const { scheduleBotReply } = await import("../bot/reply.js");
       scheduleBotReply(full.id);
     }
