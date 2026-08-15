@@ -106,6 +106,8 @@ export async function botRoutes(app: FastifyInstance) {
         },
         update: body,
       });
+      const { invalidateBotSettingsCache } = await import("../lib/bot-settings-cache.js");
+      invalidateBotSettingsCache(request.tenant.tenantId);
       return mapSettings(s);
     },
   );
