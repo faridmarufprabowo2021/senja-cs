@@ -109,6 +109,25 @@ export class BaileysDriver implements IWaDriver {
       syncFullHistory: false,
       markOnlineOnConnect: false,
       generateHighQualityLinkPreview: false,
+      getMessage: async (key: any) => {
+        if (!key?.id) return undefined;
+        try {
+          const dbMsg = await prisma.message.findFirst({
+            where: {
+              tenantId: this.tenantId,
+              waMessageId: key.id,
+            },
+          });
+          if (dbMsg?.body) {
+            return {
+              conversation: dbMsg.body,
+            };
+          }
+        } catch (err) {
+          console.warn("[wa-baileys] getMessage retry lookup error:", err);
+        }
+        return undefined;
+      },
     });
 
     this.socket.ev.on("creds.update", saveCreds);
