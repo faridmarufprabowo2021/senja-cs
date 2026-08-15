@@ -66,6 +66,9 @@ type AnalyzedConversation = {
   updatedAt: string;
 };
 
+import { DailyReportSettingsModal } from "@/components/DailyReportSettingsModal";
+import { Send } from "lucide-react";
+
 export default function AnalyticsPage() {
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
   const [conversations, setConversations] = useState<AnalyzedConversation[]>([]);
@@ -76,6 +79,7 @@ export default function AnalyticsPage() {
   const [sentimentFilter, setSentimentFilter] = useState<string>("all");
   const [intentFilter, setIntentFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const filteredConversations = conversations.filter((c) => {
     if (sentimentFilter !== "all" && c.sentiment !== sentimentFilter) return false;
@@ -194,10 +198,23 @@ export default function AnalyticsPage() {
         description="Analisis sentimen kepuasan pelanggan, performa konversi omset AI Bot, dan eskalasi komplain."
         title="AI Sentiment & Sales Analytics"
         action={
-          <Button onClick={() => void loadData()} variant="secondary">
-            <RefreshCw className="mr-2 h-4 w-4" /> Refresh Analytics
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setIsReportModalOpen(true)}
+              className="bg-sky-600 hover:bg-sky-700 text-white font-bold"
+            >
+              <Send className="mr-2 h-4 w-4" /> ✈️ Laporan Telegram &amp; WA
+            </Button>
+            <Button onClick={() => void loadData()} variant="secondary">
+              <RefreshCw className="mr-2 h-4 w-4" /> Refresh Analytics
+            </Button>
+          </div>
         }
+      />
+
+      <DailyReportSettingsModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
       />
 
       {loading ? (

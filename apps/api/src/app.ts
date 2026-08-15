@@ -180,9 +180,19 @@ export async function buildApp(opts: BuildAppOptions = {}) {
       });
   }, 2 * 60 * 1000);
 
+  // Background timer for automated Daily Executive Report (every 60 seconds)
+  const dailyReportTimer = setInterval(() => {
+    import("./services/daily-report-scheduler.js")
+      .then((scheduler) => scheduler.checkAndDispatchDailyReports())
+      .catch((err: Error) => {
+        app.log.warn({ err }, "failed running automated daily report interval");
+      });
+  }, 60 * 1000);
+
   app.addHook("onClose", async () => {
     clearInterval(timer);
     clearInterval(followupTimer);
+    clearInterval(dailyReportTimer);
   });
 
   return app;

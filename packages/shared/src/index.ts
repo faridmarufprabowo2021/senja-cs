@@ -172,6 +172,12 @@ export interface BotSettings {
   quickReplies: string[];
   cancelDeadlineHours?: number;
   shippingOrigin?: string;
+  dailyReportEnabled?: boolean;
+  dailyReportTime?: string;
+  dailyReportChannel?: string;
+  telegramBotToken?: string | null;
+  telegramChatId?: string | null;
+  ownerPhone?: string | null;
 }
 
 export interface AiAgent {

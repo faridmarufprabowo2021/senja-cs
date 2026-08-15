@@ -351,6 +351,15 @@ model BotSettings {
 
   /// Cancellation Deadline in hours before appointment
   cancelDeadlineHours   Int      @default(2)
+
+  /// Daily Executive Report Settings (Telegram & WhatsApp)
+  dailyReportEnabled    Boolean  @default(true)
+  dailyReportTime       String   @default("21:00")
+  dailyReportChannel    String   @default("telegram")
+  telegramBotToken      String?
+  telegramChatId        String?
+  ownerPhone            String?
+
   tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 

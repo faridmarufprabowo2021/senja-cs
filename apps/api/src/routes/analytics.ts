@@ -164,4 +164,77 @@ export async function analyticsRoutes(app: FastifyInstance) {
     const data = await generateTenantExecutiveInsights(tenantId);
     return { ok: true, data };
   });
+
+  // 6. GET /api/v1/analytics/daily-report/settings - Fetch Daily Report Settings
+  app.get("/daily-report/settings", async (request) => {
+    const tenantId = request.tenant.tenantId;
+    const settings = await prisma.botSettings.findUnique({
+      where: { tenantId },
+    });
+    return {
+      dailyReportEnabled: settings?.dailyReportEnabled ?? true,
+      dailyReportTime: settings?.dailyReportTime ?? "21:00",
+      dailyReportChannel: settings?.dailyReportChannel ?? "telegram",
+      telegramBotToken: settings?.telegramBotToken ?? "",
+      telegramChatId: settings?.telegramChatId ?? "",
+      ownerPhone: settings?.ownerPhone ?? "",
+    };
+  });
+
+  // 7. PATCH /api/v1/analytics/daily-report/settings - Update Daily Report Settings
+  app.patch("/daily-report/settings", async (request) => {
+    const tenantId = request.tenant.tenantId;
+    const body = request.body as {
+      dailyReportEnabled?: boolean;
+      dailyReportTime?: string;
+      dailyReportChannel?: string;
+      telegramBotToken?: string;
+      telegramChatId?: string;
+      ownerPhone?: string;
+    };
+
+    const updated = await prisma.botSettings.upsert({
+      where: { tenantId },
+      create: {
+        tenantId,
+        dailyReportEnabled: body.dailyReportEnabled ?? true,
+        dailyReportTime: body.dailyReportTime ?? "21:00",
+        dailyReportChannel: body.dailyReportChannel ?? "telegram",
+        telegramBotToken: body.telegramBotToken?.trim() || null,
+        telegramChatId: body.telegramChatId?.trim() || null,
+        ownerPhone: body.ownerPhone?.trim() || null,
+      },
+      update: {
+        ...(typeof body.dailyReportEnabled === "boolean" ? { dailyReportEnabled: body.dailyReportEnabled } : {}),
+        ...(body.dailyReportTime ? { dailyReportTime: body.dailyReportTime } : {}),
+        ...(body.dailyReportChannel ? { dailyReportChannel: body.dailyReportChannel } : {}),
+        ...(body.telegramBotToken !== undefined ? { telegramBotToken: body.telegramBotToken.trim() || null } : {}),
+        ...(body.telegramChatId !== undefined ? { telegramChatId: body.telegramChatId.trim() || null } : {}),
+        ...(body.ownerPhone !== undefined ? { ownerPhone: body.ownerPhone.trim() || null } : {}),
+      },
+    });
+
+    return {
+      ok: true,
+      data: {
+        dailyReportEnabled: updated.dailyReportEnabled,
+        dailyReportTime: updated.dailyReportTime,
+        dailyReportChannel: updated.dailyReportChannel,
+        telegramBotToken: updated.telegramBotToken ?? "",
+        telegramChatId: updated.telegramChatId ?? "",
+        ownerPhone: updated.ownerPhone ?? "",
+      },
+    };
+  });
+
+  // 8. POST /api/v1/analytics/daily-report/send-now - Instantly trigger test report dispatch
+  app.post("/daily-report/send-now", async (request, reply) => {
+    const tenantId = request.tenant.tenantId;
+    const { dispatchDailyReport } = await import("../services/daily-report.js");
+    const result = await dispatchDailyReport(tenantId);
+    if (!result.ok) {
+      return reply.code(400).send({ ok: false, error: result.message });
+    }
+    return { ok: true, message: result.message };
+  });
 }
