@@ -563,7 +563,6 @@ class WaManager {
       where: {
         tenantId,
         contactId: contact.id,
-        status: { not: "resolved" },
       },
       orderBy: { lastMessageAt: "desc" },
     });
@@ -574,6 +573,7 @@ class WaManager {
           tenantId,
           contactId: contact.id,
           waSessionId: sessionId,
+          channel: "whatsapp",
           status: "bot_active",
           mode: "bot",
           lastMessagePreview: preview,
@@ -585,15 +585,12 @@ class WaManager {
       conversation = await prisma.conversation.update({
         where: { id: conversation.id },
         data: {
+          waSessionId: sessionId || conversation.waSessionId,
+          status: conversation.status === "resolved" ? "bot_active" : conversation.status,
+          mode: conversation.status === "resolved" ? "bot" : conversation.mode,
           lastMessagePreview: preview,
           lastMessageAt: now,
           unreadCount: { increment: 1 },
-          status:
-            conversation.status === "resolved"
-              ? "bot_active"
-              : conversation.status === "new"
-                ? "bot_active"
-                : conversation.status,
         },
       });
     }
