@@ -110,6 +110,14 @@ model Tenant {
   payAccount    String               @default("")
   payAccountName String              @default("")
   payNote       String               @default("")
+  /// Format Invoice & Nota Pembayaran Kustom
+  invoiceHeader            String    @default("")
+  invoiceFooter            String    @default("")
+  receiptHeader            String    @default("")
+  receiptFooter            String    @default("")
+  invoiceCustomTemplate    String    @default("") @db.Text
+  receiptCustomTemplate    String    @default("") @db.Text
+  useCustomInvoiceTemplate Boolean   @default(false)
   /// Custom Payment Gateway Midtrans milik Tenant
   midtransServerKey    String        @default("")
   midtransClientKey    String        @default("")

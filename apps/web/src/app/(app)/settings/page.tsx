@@ -141,6 +141,11 @@ export default function SettingsPage() {
                 🎟️ Kelola Voucher Promo
               </Button>
             </Link>
+            <Link href="/settings/invoice">
+              <Button variant="secondary" className="bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100 font-bold">
+                🧾 Format Invoice & Nota
+              </Button>
+            </Link>
             <Link href="/settings/billing">
               <Button variant="secondary">
                 <CreditCard className="h-4 w-4" />

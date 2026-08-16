@@ -384,6 +384,13 @@ export interface WorkspaceSettings {
   midtransClientKey?: string;
   midtransMerchantId?: string;
   midtransIsProduction?: boolean;
+  invoiceHeader?: string;
+  invoiceFooter?: string;
+  receiptHeader?: string;
+  receiptFooter?: string;
+  invoiceCustomTemplate?: string;
+  receiptCustomTemplate?: string;
+  useCustomInvoiceTemplate?: boolean;
 }
 
 export const STATUS_LABEL: Record<ConversationStatus, string> = {

@@ -91,6 +91,13 @@ export async function commerceRoutes(app: FastifyInstance) {
       payAccount: t.payAccount,
       payAccountName: t.payAccountName,
       payNote: t.payNote,
+      invoiceHeader: t.invoiceHeader || "",
+      invoiceFooter: t.invoiceFooter || "",
+      receiptHeader: t.receiptHeader || "",
+      receiptFooter: t.receiptFooter || "",
+      invoiceCustomTemplate: t.invoiceCustomTemplate || "",
+      receiptCustomTemplate: t.receiptCustomTemplate || "",
+      useCustomInvoiceTemplate: t.useCustomInvoiceTemplate ?? false,
       midtransServerKey: t.midtransServerKey,
       midtransClientKey: t.midtransClientKey,
       midtransMerchantId: t.midtransMerchantId,
@@ -110,6 +117,13 @@ export async function commerceRoutes(app: FastifyInstance) {
           payAccount: z.string().max(80).optional(),
           payAccountName: z.string().max(120).optional(),
           payNote: z.string().max(1000).optional(),
+          invoiceHeader: z.string().max(300).optional(),
+          invoiceFooter: z.string().max(500).optional(),
+          receiptHeader: z.string().max(300).optional(),
+          receiptFooter: z.string().max(500).optional(),
+          invoiceCustomTemplate: z.string().max(4000).optional(),
+          receiptCustomTemplate: z.string().max(4000).optional(),
+          useCustomInvoiceTemplate: z.boolean().optional(),
           midtransServerKey: z.string().max(200).optional(),
           midtransClientKey: z.string().max(200).optional(),
           midtransMerchantId: z.string().max(200).optional(),
@@ -127,6 +141,13 @@ export async function commerceRoutes(app: FastifyInstance) {
             ? { payAccountName: body.payAccountName }
             : {}),
           ...(body.payNote != null ? { payNote: body.payNote } : {}),
+          ...(body.invoiceHeader != null ? { invoiceHeader: body.invoiceHeader } : {}),
+          ...(body.invoiceFooter != null ? { invoiceFooter: body.invoiceFooter } : {}),
+          ...(body.receiptHeader != null ? { receiptHeader: body.receiptHeader } : {}),
+          ...(body.receiptFooter != null ? { receiptFooter: body.receiptFooter } : {}),
+          ...(body.invoiceCustomTemplate != null ? { invoiceCustomTemplate: body.invoiceCustomTemplate } : {}),
+          ...(body.receiptCustomTemplate != null ? { receiptCustomTemplate: body.receiptCustomTemplate } : {}),
+          ...(body.useCustomInvoiceTemplate != null ? { useCustomInvoiceTemplate: body.useCustomInvoiceTemplate } : {}),
           ...(body.midtransServerKey != null
             ? { midtransServerKey: body.midtransServerKey }
             : {}),
@@ -151,9 +172,73 @@ export async function commerceRoutes(app: FastifyInstance) {
         payAccount: t.payAccount,
         payAccountName: t.payAccountName,
         payNote: t.payNote,
+        invoiceHeader: t.invoiceHeader,
+        invoiceFooter: t.invoiceFooter,
+        receiptHeader: t.receiptHeader,
+        receiptFooter: t.receiptFooter,
+        invoiceCustomTemplate: t.invoiceCustomTemplate,
+        receiptCustomTemplate: t.receiptCustomTemplate,
+        useCustomInvoiceTemplate: t.useCustomInvoiceTemplate,
         midtransMerchantId: t.midtransMerchantId,
         midtransIsProduction: t.midtransIsProduction,
       };
+    },
+  );
+
+  app.post(
+    "/settings/preview-invoice",
+    { preHandler: [requireRole("owner", "admin", "agent")] },
+    async (request) => {
+      const body = z
+        .object({
+          template: z.string().optional(),
+          type: z.enum(["invoice", "receipt"]).default("invoice"),
+          invoiceHeader: z.string().optional(),
+          invoiceFooter: z.string().optional(),
+          receiptHeader: z.string().optional(),
+          receiptFooter: z.string().optional(),
+          useCustomInvoiceTemplate: z.boolean().optional(),
+        })
+        .parse(request.body || {});
+
+      const tenant = await prisma.tenant.findUniqueOrThrow({
+        where: { id: request.tenant.tenantId },
+      });
+
+      const sampleOrder: any = {
+        id: "cmspg8888sample999",
+        status: body.type === "receipt" ? "paid" : "confirmed",
+        total: 150000,
+        note: "Mohon dikirim sore hari",
+        createdAt: new Date(),
+        contact: { name: "Budi Santoso" },
+        items: [
+          { qty: 2, price: 50000, product: { name: "Kopi Susu Senja 500ml" } },
+          { qty: 1, price: 50000, product: { name: "Croissant Almond Butter" } },
+        ],
+        tenant: {
+          ...tenant,
+          ...(body.invoiceHeader != null ? { invoiceHeader: body.invoiceHeader } : {}),
+          ...(body.invoiceFooter != null ? { invoiceFooter: body.invoiceFooter } : {}),
+          ...(body.receiptHeader != null ? { receiptHeader: body.receiptHeader } : {}),
+          ...(body.receiptFooter != null ? { receiptFooter: body.receiptFooter } : {}),
+          ...(body.template != null
+            ? body.type === "receipt"
+              ? { receiptCustomTemplate: body.template }
+              : { invoiceCustomTemplate: body.template }
+            : {}),
+          ...(body.useCustomInvoiceTemplate != null
+            ? { useCustomInvoiceTemplate: body.useCustomInvoiceTemplate }
+            : {}),
+        },
+      };
+
+      const { formatInvoiceText, formatPaidReceiptText } = await import("../lib/invoice.js");
+      const previewText = body.type === "receipt"
+        ? formatPaidReceiptText(sampleOrder)
+        : formatInvoiceText(sampleOrder);
+
+      return { previewText };
     },
   );
 

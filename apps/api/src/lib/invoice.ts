@@ -14,6 +14,13 @@ export type InvoiceOrder = {
     payAccount: string;
     payAccountName: string;
     payNote: string;
+    invoiceHeader?: string;
+    invoiceFooter?: string;
+    receiptHeader?: string;
+    receiptFooter?: string;
+    invoiceCustomTemplate?: string;
+    receiptCustomTemplate?: string;
+    useCustomInvoiceTemplate?: boolean;
   };
 };
 
@@ -54,9 +61,34 @@ export function formatPaymentBlock(t: {
     lines.push(bank);
   }
   if (t.payAccountName) lines.push(`a.n. ${t.payAccountName}`);
-  if (t.payNote.trim()) lines.push(t.payNote.trim());
+  if (t.payNote?.trim()) lines.push(t.payNote.trim());
   if (!lines.length) return null;
   return lines.join("\n");
+}
+
+export function compileTemplateVariables(
+  template: string,
+  vars: {
+    storeName: string;
+    customerName: string;
+    orderRef: string;
+    itemsList: string;
+    total: string;
+    status: string;
+    paymentInfo: string;
+    date: string;
+  },
+): string {
+  if (!template) return "";
+  return template
+    .replace(/\{store_name\}/g, vars.storeName || "Toko")
+    .replace(/\{customer_name\}/g, vars.customerName || "Pelanggan")
+    .replace(/\{order_ref\}/g, vars.orderRef || "#ORD")
+    .replace(/\{items\}/g, vars.itemsList || "")
+    .replace(/\{total\}/g, vars.total || "Rp0")
+    .replace(/\{status\}/g, vars.status || "Baru")
+    .replace(/\{payment_info\}/g, vars.paymentInfo || "")
+    .replace(/\{date\}/g, vars.date || "");
 }
 
 /** Invoice / tagihan (belum lunas) — B2 + B1 */
@@ -69,19 +101,41 @@ export function formatInvoiceText(order: InvoiceOrder): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const lines = order.items.map(
-    (i) =>
-      `• ${i.qty}× ${i.product.name} — ${formatRp(i.price * i.qty)}`,
-  );
+  const itemsLines = order.items.map(
+    (i) => `• ${i.qty}× ${i.product.name} — ${formatRp(i.price * i.qty)}`,
+  ).join("\n");
+
   const pay = formatPaymentBlock(order.tenant);
+  const payBlock = pay
+    ? `— Cara bayar —\n${pay}\n\nSetelah transfer, balas chat ini dengan *bukti bayar*.`
+    : "_Cara bayar belum diatur toko. Minta admin isi di Pengaturan._";
+
+  // Check if custom template enabled
+  if (order.tenant.useCustomInvoiceTemplate && order.tenant.invoiceCustomTemplate?.trim()) {
+    return compileTemplateVariables(order.tenant.invoiceCustomTemplate, {
+      storeName: order.tenant.name,
+      customerName: order.contact.name,
+      orderRef: ref,
+      itemsList: itemsLines,
+      total: formatRp(order.total),
+      status: statusLabelId(order.status),
+      paymentInfo: payBlock,
+      date: when,
+    });
+  }
+
+  // Header & Footer custom override if present
+  const header = order.tenant.invoiceHeader?.trim() || `🧾 *Invoice ${order.tenant.name}*`;
+  const footer = order.tenant.invoiceFooter?.trim() || "Terima kasih 🙏";
+
   const parts = [
-    `🧾 *Invoice ${order.tenant.name}*`,
+    header,
     `No: ${ref} · ${when}`,
     "",
     `Halo *${order.contact.name}*,`,
     "",
     "*Rincian pesanan*",
-    ...lines,
+    itemsLines,
     "",
     `*Total*  *${formatRp(order.total)}*`,
     `Status: *${statusLabelId(order.status)}*`,
@@ -89,34 +143,52 @@ export function formatInvoiceText(order: InvoiceOrder): string {
   if (order.note?.trim()) {
     parts.push(`Catatan: ${order.note.trim()}`);
   }
-  if (pay && order.status !== "paid" && order.status !== "done") {
-    parts.push("", "— Cara bayar —", pay, "", "Setelah transfer, balas chat ini dengan *bukti bayar*.");
-  } else if (!pay && order.status !== "paid" && order.status !== "done") {
-    parts.push(
-      "",
-      "_Cara bayar belum diatur toko. Minta admin isi di Pengaturan._",
-    );
+  if (order.status !== "paid" && order.status !== "done") {
+    parts.push("", payBlock);
   }
-  parts.push("", "Terima kasih 🙏");
+  parts.push("", footer);
   return parts.join("\n");
 }
 
 /** Nota setelah lunas — siap untuk B3 / status paid */
 export function formatPaidReceiptText(order: InvoiceOrder): string {
   const ref = orderRef(order.id);
-  const lines = order.items.map(
+  const when = order.createdAt.toLocaleString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const itemsLines = order.items.map(
     (i) => `• ${i.qty}× ${i.product.name}`,
-  );
+  ).join("\n");
+
+  if (order.tenant.useCustomInvoiceTemplate && order.tenant.receiptCustomTemplate?.trim()) {
+    return compileTemplateVariables(order.tenant.receiptCustomTemplate, {
+      storeName: order.tenant.name,
+      customerName: order.contact.name,
+      orderRef: ref,
+      itemsList: itemsLines,
+      total: formatRp(order.total),
+      status: order.status === "done" ? "Selesai" : "Sedang disiapkan",
+      paymentInfo: "LUNAS",
+      date: when,
+    });
+  }
+
+  const header = order.tenant.receiptHeader?.trim() || `✅ *Pembayaran diterima*\n*${order.tenant.name}* · No: ${ref}`;
+  const footer = order.tenant.receiptFooter?.trim() || "Ada pertanyaan? Balas chat ini saja.\nTerima kasih 🙏";
+
   const parts = [
-    `✅ *Pembayaran diterima*`,
-    `*${order.tenant.name}* · No: ${ref}`,
+    header,
     "",
     `Halo *${order.contact.name}*,`,
     "",
     `Terima kasih, pembayaran *${formatRp(order.total)}* sudah kami terima.`,
     "",
     "*Pesanan Anda*",
-    ...lines,
+    itemsLines,
     "",
     `*Total*  *${formatRp(order.total)}* · *LUNAS*`,
     `Status: *${order.status === "done" ? "Selesai" : "Sedang disiapkan"}*`,
@@ -126,11 +198,7 @@ export function formatPaidReceiptText(order: InvoiceOrder): string {
     parts.push("", `📌 Catatan: ${order.tenant.payNote.trim()}`);
   }
 
-  parts.push(
-    "",
-    "Ada pertanyaan? Balas chat ini saja.",
-    "Terima kasih 🙏",
-  );
+  parts.push("", footer);
   return parts.join("\n");
 }
 
