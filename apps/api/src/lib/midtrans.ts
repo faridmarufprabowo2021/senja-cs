@@ -39,23 +39,69 @@ export async function createMidtransTransaction(
 
   const authHeader = Buffer.from(`${serverKey}:`).toString("base64");
 
-  // First try Snap API for redirect payment URL
+  const grossAmount = Math.max(1000, Math.round(opts.grossAmount));
+
+  // Format & sanitize item_details according to strict Midtrans API rules:
+  // 1. item_details[].name MUST BE MAX 50 CHARACTERS
+  // 2. sum(item_details[].price * item_details[].quantity) MUST EQUAL gross_amount EXACTLY
+  let formattedItems: { id: string; price: number; quantity: number; name: string }[] = [];
+
+  if (opts.items && opts.items.length > 0) {
+    formattedItems = opts.items.map((it, idx) => {
+      const cleanName = (it.name || `Item ${idx + 1}`).trim();
+      const truncatedName = cleanName.length > 48 ? cleanName.slice(0, 45) + "..." : cleanName;
+      const cleanId = cleanName.replace(/[^a-zA-Z0-9_\-]/g, "_").slice(0, 20) || `item-${idx}`;
+
+      return {
+        id: cleanId,
+        price: Math.round(it.price),
+        quantity: Math.max(1, Math.round(it.qty)),
+        name: truncatedName,
+      };
+    });
+
+    const itemsSum = formattedItems.reduce((acc, it) => acc + (it.price * it.quantity), 0);
+    const diff = grossAmount - itemsSum;
+
+    if (diff > 0) {
+      formattedItems.push({
+        id: "SERVICE-FEE",
+        price: diff,
+        quantity: 1,
+        name: "Biaya Layanan / Penyesuaian",
+      });
+    } else if (diff < 0) {
+      formattedItems.push({
+        id: "DISCOUNT-FEE",
+        price: diff,
+        quantity: 1,
+        name: "Potongan Diskon / Promo",
+      });
+    }
+  } else {
+    const cleanCustomer = (opts.customerName || "Pelanggan").trim();
+    const itemName = `Pesanan ${cleanCustomer}`.slice(0, 48);
+    formattedItems = [
+      {
+        id: (opts.orderId || "ORD-PAY").replace(/[^a-zA-Z0-9_\-]/g, "_").slice(0, 20),
+        price: grossAmount,
+        quantity: 1,
+        name: itemName,
+      },
+    ];
+  }
+
   try {
     const body = {
       transaction_details: {
         order_id: opts.orderId,
-        gross_amount: opts.grossAmount,
+        gross_amount: grossAmount,
       },
       customer_details: {
-        first_name: opts.customerName,
-        phone: opts.customerPhone || "",
+        first_name: (opts.customerName || "Pelanggan").trim().slice(0, 50),
+        phone: (opts.customerPhone || "").trim(),
       },
-      item_details: opts.items?.map((it) => ({
-        id: it.name.slice(0, 20),
-        price: it.price,
-        quantity: it.qty,
-        name: it.name,
-      })),
+      item_details: formattedItems,
       enabled_payments: ["gopay", "shopeepay", "bca_va", "bni_va", "bri_va", "qris"],
     };
 
@@ -156,7 +202,6 @@ export async function testMidtransCredentials(opts: {
   const authHeader = Buffer.from(`${serverKey}:`).toString("base64");
 
   try {
-    // Ping fake order status endpoint to test Basic Authentication header with Midtrans API
     const res = await fetch(`${baseUrl}/ping_auth_test_12345/status`, {
       method: "GET",
       headers: {
@@ -166,9 +211,6 @@ export async function testMidtransCredentials(opts: {
     });
 
     const data = (await res.json()) as any;
-    // Standard Midtrans HTTP responses when Auth succeeds:
-    // 404 (Transaction not found) means Auth Key is VALID!
-    // 401 (Access Denied / Unauthorized) means Auth Key is INVALID!
     if (res.status === 401 || data?.status_code === "401") {
       return {
         ok: false,
