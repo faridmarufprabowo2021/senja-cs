@@ -17,7 +17,8 @@ export async function paymentRoutes(app: FastifyInstance) {
     request.log.info({ payload }, "received Midtrans webhook notification");
 
     if (!payload || !payload.order_id) {
-      return reply.code(400).send({ error: "Invalid payload: missing order_id" });
+      request.log.info({ payload }, "Midtrans test notification / ping received");
+      return { ok: true, status: "test_notification_received", message: "Midtrans webhook endpoint active" };
     }
 
     const { order_id, transaction_status, fraud_status, signature_key, status_code, gross_amount } = payload;
@@ -186,6 +187,8 @@ export async function paymentRoutes(app: FastifyInstance) {
     return { ok: true, orderId: updated.id, status: "paid" };
   }
 
+  app.get("/payments/midtrans-webhook", async () => ({ ok: true, status: "active", message: "Midtrans webhook endpoint active" }));
+  app.get("/midtrans-webhook", async () => ({ ok: true, status: "active", message: "Midtrans webhook endpoint active" }));
   app.post("/payments/midtrans-webhook", handleMidtransWebhook);
   app.post("/midtrans-webhook", handleMidtransWebhook);
 }
