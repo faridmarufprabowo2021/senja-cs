@@ -163,48 +163,48 @@ export default function DashboardPage() {
 
       {/* AI Follow-Up Performance & Recovered Revenue Banner */}
       {followupStats ? (
-        <Card className="mb-8 p-5 bg-gradient-to-r from-purple-900/10 via-indigo-900/5 to-transparent border-purple-200/50 dark:border-purple-800/30">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <Card className="mb-8 p-5 border-[var(--color-line)] bg-[var(--color-surface)] shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div className="flex items-center gap-3.5">
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-purple-600 text-white shadow-md">
-                <Bot className="h-6 w-6" />
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
+                <Bot className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="font-bold text-base text-[var(--color-ink)]">Performa AI Follow-Up Engine</h2>
-                  <Badge tone="success">Active</Badge>
+                  <h2 className="font-semibold text-sm text-[var(--color-ink)]">Performa AI Follow-Up Engine</h2>
+                  <Badge tone="accent">Aktif</Badge>
                 </div>
                 <p className="text-xs text-[var(--color-muted)] mt-0.5">
-                  Statistik penjangkauan ulang otomatis & omset yang berhasil diselamatkan AI.
+                  Penjangkauan otomatis & omset yang berhasil diselamatkan AI.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2 lg:pt-0">
-              <div className="border-l-2 border-purple-500 pl-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 pt-2 lg:pt-0">
+              <div className="border-l-2 border-[var(--color-accent)] pl-3">
                 <div className="text-[11px] font-medium text-[var(--color-muted)]">Total Follow-Up</div>
-                <div className="text-xl font-bold text-[var(--color-ink)]">{followupStats.totalFollowupsSent} Chat</div>
+                <div className="text-lg font-semibold tracking-tight text-[var(--color-ink)]">{followupStats.totalFollowupsSent} Chat</div>
                 <div className="text-[10px] text-[var(--color-muted)]">Stage 1: {followupStats.stage1Sent} · Stage 2: {followupStats.stage2Sent}</div>
               </div>
 
-              <div className="border-l-2 border-emerald-500 pl-3">
+              <div className="border-l-2 border-[var(--color-accent)] pl-3">
                 <div className="text-[11px] font-medium text-[var(--color-muted)]">Chat Konversi</div>
-                <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{followupStats.totalConverted} Chat</div>
-                <div className="text-[10px] text-[var(--color-muted)]">Merespons/Booking kembali</div>
+                <div className="text-lg font-semibold tracking-tight text-[var(--color-accent)]">{followupStats.totalConverted} Chat</div>
+                <div className="text-[10px] text-[var(--color-muted)]">Merespons / booking kembali</div>
               </div>
 
-              <div className="border-l-2 border-indigo-500 pl-3">
+              <div className="border-l-2 border-[var(--color-accent)] pl-3">
                 <div className="text-[11px] font-medium text-[var(--color-muted)]">Conversion Rate</div>
-                <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{followupStats.conversionRate}%</div>
+                <div className="text-lg font-semibold tracking-tight text-[var(--color-accent)]">{followupStats.conversionRate}%</div>
                 <div className="text-[10px] text-[var(--color-muted)]">Tingkat efektivitas AI</div>
               </div>
 
-              <div className="border-l-2 border-amber-500 pl-3">
-                <div className="text-[11px] font-medium text-[var(--color-muted)]">Omzet Diselamatkan</div>
-                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+              <div className="border-l-2 border-emerald-500 pl-3">
+                <div className="text-[11px] font-medium text-[var(--color-muted)]">Omset Diselamatkan</div>
+                <div className="text-lg font-semibold tracking-tight text-emerald-600 dark:text-emerald-400">
                   Rp{followupStats.recoveredRevenue.toLocaleString("id-ID")}
                 </div>
-                <div className="text-[10px] text-[var(--color-muted)]">Recovered Sales Revenue</div>
+                <div className="text-[10px] text-[var(--color-muted)]">Recovered sales revenue</div>
               </div>
             </div>
           </div>

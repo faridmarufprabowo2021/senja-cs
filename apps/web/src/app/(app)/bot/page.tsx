@@ -956,13 +956,14 @@ export default function BotPage() {
 
                   {/* Quiet Hours DND Guard Settings */}
                   <div className="pt-3 border-t border-[var(--color-line)] space-y-3">
-                    <div className="flex items-center justify-between p-3.5 border rounded-xl border-purple-200 bg-purple-50/20">
+                    <div className="flex items-center justify-between p-3.5 border rounded-xl border-[var(--color-line)] bg-[var(--color-surface)]">
                       <div>
-                        <div className="font-semibold text-xs text-purple-950 flex items-center gap-1.5">
-                          🌙 Proteksi Jam Istirahat (Quiet Hours & DND Guard)
+                        <div className="font-semibold text-xs text-[var(--color-ink)] flex items-center gap-1.5">
+                          <Clock className="h-4 w-4 text-[var(--color-accent)]" />
+                          Proteksi Jam Istirahat (Quiet Hours & DND Guard)
                         </div>
-                        <div className="text-[11px] text-purple-700/80 mt-0.5">
-                          Mencegah AI mengirim pesan follow-up di malam hari agar nomor WA tidak di-report spam/banned oleh pelanggan!
+                        <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+                          Mencegah AI mengirim pesan follow-up di malam hari agar nomor WA tidak dilaporkan spam oleh pelanggan.
                         </div>
                       </div>
                       <input
@@ -974,15 +975,15 @@ export default function BotPage() {
                             quietHoursEnabled: e.target.checked,
                           }))
                         }
-                        className="h-5 w-5 rounded text-purple-600 cursor-pointer"
+                        className="h-5 w-5 rounded text-[var(--color-accent)] cursor-pointer"
                       />
                     </div>
 
                     {editForm.quietHoursEnabled ?? true ? (
-                      <div className="grid gap-3 sm:grid-cols-3 bg-purple-50/10 p-3 rounded-xl border border-purple-100">
+                      <div className="grid gap-3 sm:grid-cols-3 bg-[var(--color-paper-2)]/50 p-3 rounded-xl border border-[var(--color-line)]">
                         <div>
                           <label className="mb-1 block text-xs font-semibold text-[var(--color-ink)]">
-                            🌙 Jam Mulai (DND)
+                            Jam Mulai (DND)
                           </label>
                           <Input
                             type="text"
@@ -995,12 +996,12 @@ export default function BotPage() {
                             }
                             placeholder="22:00"
                           />
-                          <span className="text-[10px] text-[var(--color-muted)] mt-0.5 block">Format 24-jam (misal 22:00)</span>
+                          <span className="text-[10px] text-[var(--color-muted)] mt-0.5 block">Format 24 jam (misal 22:00)</span>
                         </div>
 
                         <div>
                           <label className="mb-1 block text-xs font-semibold text-[var(--color-ink)]">
-                            ☀️ Jam Selesai (DND)
+                            Jam Selesai (DND)
                           </label>
                           <Input
                             type="text"
@@ -1013,12 +1014,12 @@ export default function BotPage() {
                             }
                             placeholder="08:00"
                           />
-                          <span className="text-[10px] text-[var(--color-muted)] mt-0.5 block">Format 24-jam (misal 08:00)</span>
+                          <span className="text-[10px] text-[var(--color-muted)] mt-0.5 block">Format 24 jam (misal 08:00)</span>
                         </div>
 
                         <div>
                           <label className="mb-1 block text-xs font-semibold text-[var(--color-ink)]">
-                            🌍 Zona Waktu (Timezone)
+                            Zona Waktu (Timezone)
                           </label>
                           <select
                             value={editForm.quietHoursTz || "Asia/Jakarta"}
