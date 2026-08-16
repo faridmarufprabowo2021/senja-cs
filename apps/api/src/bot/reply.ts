@@ -586,6 +586,7 @@ ATURAN PENTING & INTEGRASI AKSES DATA:
           const { createPaymentQrisLinkTool } = await import("../tools/engagement.js");
           const qrisRes = await createPaymentQrisLinkTool({
             tenantId: conversation.tenantId,
+            contactId: conversation.contactId,
             productName: String(args.productName),
             amount: Number(args.amount) || 10000,
             qty: Number(args.qty) || 1,

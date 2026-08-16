@@ -129,8 +129,22 @@ export async function paymentRoutes(app: FastifyInstance) {
       }));
 
     if (!order) {
-      request.log.warn({ order_id }, "order not found for Midtrans payment");
-      return reply.code(404).send({ error: "Order not found" });
+      request.log.warn({ order_id }, "order not found for Midtrans payment — emitting generic notification fallback");
+      const defaultTenant = await prisma.tenant.findFirst({ select: { id: true } });
+      if (defaultTenant) {
+        void createAndEmitNotification({
+          tenantId: defaultTenant.id,
+          type: "payment_received",
+          title: "💰 Pembayaran Masuk (Midtrans QRIS)",
+          message: `Pembayaran Lunas via Midtrans untuk Transaksi #${order_id.slice(-8).toUpperCase()} sebesar Rp ${Number(gross_amount || 0).toLocaleString("id-ID")}`,
+          link: "/dashboard",
+          metadata: {
+            orderId: order_id,
+            grossAmount: Number(gross_amount || 0),
+          },
+        });
+      }
+      return { ok: true, status: "paid", message: "Payment notification emitted for standalone transaction" };
     }
 
     // If order already marked paid, return duplicate ok

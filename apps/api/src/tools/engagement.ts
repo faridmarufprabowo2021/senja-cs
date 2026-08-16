@@ -98,7 +98,6 @@ export async function collectFeedbackReviewTool(opts: {
   const { rating, reviewText = "" } = opts;
   const stars = "⭐".repeat(Math.min(5, Math.max(1, Math.round(rating))));
 
-  // Save to metadata or log
   let replyMsg = `⭐ *Terima Kasih Atas Ulasan Anda!* (${stars})\n\n`;
   if (rating >= 4) {
     replyMsg += `Senang sekali bisa memberikan pelayanan terbaik untuk Kakak! Masukan dan penilaian ${stars} ini sangat berarti bagi perkembangan layanan kami. 🙏❤️`;
@@ -116,13 +115,14 @@ export async function collectFeedbackReviewTool(opts: {
 /** Buat Link Pembayaran Midtrans & QRIS Secara Otomatis di Chat AI */
 export async function createPaymentQrisLinkTool(opts: {
   tenantId: string;
+  contactId?: string;
   productName: string;
   amount: number;
   qty?: number;
   customerName?: string;
   customerPhone?: string;
 }): Promise<ToolResult> {
-  const { tenantId, productName, amount, qty = 1, customerName = "Pelanggan", customerPhone = "" } = opts;
+  const { tenantId, contactId, productName, amount, qty = 1, customerName = "Pelanggan", customerPhone = "" } = opts;
 
   // Retrieve tenant's custom Midtrans settings
   const tenant = await prisma.tenant.findUnique({
@@ -130,16 +130,50 @@ export async function createPaymentQrisLinkTool(opts: {
     select: { midtransServerKey: true, midtransIsProduction: true },
   });
 
-  const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const totalAmount = Math.max(1000, Math.round(amount * qty));
+
+  // Resolve target contact ID to associate order
+  let targetContactId = contactId;
+  if (!targetContactId) {
+    const firstContact = await prisma.contact.findFirst({ where: { tenantId } });
+    targetContactId = firstContact?.id;
+  }
+
+  let orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  // Create real Order record in DB so Midtrans webhook can locate the Order and trigger notifications & B3 auto-nota WA!
+  if (targetContactId) {
+    try {
+      let product = await prisma.product.findFirst({
+        where: { tenantId, active: true, name: { contains: productName.trim(), mode: "insensitive" } },
+      });
+
+      const order = await prisma.order.create({
+        data: {
+          tenantId,
+          contactId: targetContactId,
+          status: "draft",
+          total: totalAmount,
+          note: `Midtrans QRIS: ${productName} (x${qty})`,
+          ...(product
+            ? { items: { create: [{ productId: product.id, qty, price: Math.round(amount) }] } }
+            : {}),
+        },
+      });
+      orderId = order.id;
+    } catch (err) {
+      console.warn("Failed to persist draft order for Midtrans QRIS link tool", err);
+    }
+  }
 
   const { createMidtransTransaction } = await import("../lib/midtrans.js");
 
   const res = await createMidtransTransaction({
     orderId,
-    grossAmount: Math.max(1000, amount * qty),
+    grossAmount: totalAmount,
     customerName,
     customerPhone,
-    items: [{ name: productName, price: amount, qty }],
+    items: [{ name: productName.slice(0, 48), price: totalAmount, qty: 1 }],
     serverKey: tenant?.midtransServerKey || undefined,
     isProduction: tenant?.midtransIsProduction ?? false,
   });
@@ -154,9 +188,9 @@ export async function createPaymentQrisLinkTool(opts: {
   const modeBadge = tenant?.midtransIsProduction ? "LIVE (Production)" : "TEST (Sandbox)";
 
   const msg = `💳 *Tautan Pembayaran Resmi (Midtrans ${modeBadge})*\n\n` +
-    `• Order ID: *#${orderId}*\n` +
+    `• Order ID: *#${orderId.slice(-8).toUpperCase()}*\n` +
     `• Produk: *${productName}* (x${qty})\n` +
-    `• Total Tagihan: *Rp ${(amount * qty).toLocaleString("id-ID")}*\n\n` +
+    `• Total Tagihan: *Rp ${totalAmount.toLocaleString("id-ID")}*\n\n` +
     `🔗 *Klik Link Bayar / QRIS di bawah ini:*\n${res.redirectUrl}\n\n` +
     `_Tautan di atas mendukung pembayaran via QRIS, GoPay, ShopeePay, & Virtual Account Bank!_`;
 
