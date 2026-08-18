@@ -64,6 +64,7 @@ const navGroups: NavGroup[] = [
   {
     section: "Otomatisasi & AI",
     items: [
+      { href: "/analytics/copilot", label: "CRM Analis by AI", icon: Sparkles, managerOnly: true },
       { href: "/catalog", label: "Katalog Produk", icon: Package, managerOnly: true },
       { href: "/knowledge", label: "Knowledge Base", icon: BookOpen, managerOnly: true },
       { href: "/bot", label: "Bot AI RAG", icon: Bot, managerOnly: true },

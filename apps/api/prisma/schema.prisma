@@ -154,6 +154,7 @@ model Tenant {
   pipelineDeals PipelineDeal[]
   promos        PromoVoucher[]
   broadcastTemplates BroadcastTemplate[]
+  crmCopilotSessions CrmCopilotSession[]
 }
 
 enum SubscriptionStatus {
@@ -756,6 +757,31 @@ model PromoVoucher {
 
   @@index([tenantId, active])
 }
+
+model CrmCopilotSession {
+  id        String              @id @default(cuid())
+  tenantId  String
+  title     String              @default("Sesi Analisis CRM")
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages  CrmCopilotMessage[]
+
+  @@index([tenantId])
+}
+
+model CrmCopilotMessage {
+  id        String            @id @default(cuid())
+  sessionId String
+  role      String            // "user" | "assistant"
+  content   String            @db.Text
+  metadata  Json?
+  createdAt DateTime          @default(now())
+  session   CrmCopilotSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
 
 
 

@@ -140,6 +140,8 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await app.register(wsRoutes, { prefix: "/api/v1" });
   const { followupAnalyticsRoutes } = await import("./routes/followup-analytics.js");
   await app.register(followupAnalyticsRoutes, { prefix: "/api/v1" });
+  const { crmCopilotRoutes } = await import("./routes/crm-copilot.js");
+  await app.register(crmCopilotRoutes, { prefix: "/api/v1" });
 
   app.setErrorHandler((err, req, reply) => {
     if (err && typeof err === "object" && "issues" in err) {

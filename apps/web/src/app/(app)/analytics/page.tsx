@@ -199,6 +199,11 @@ export default function AnalyticsPage() {
         title="AI Sentiment & Sales Analytics"
         action={
           <div className="flex items-center gap-2">
+            <Link href="/analytics/copilot">
+              <Button className="bg-[var(--color-accent)] hover:bg-[var(--color-accent-dark)] text-white font-bold gap-1.5">
+                <Sparkles className="h-4 w-4" /> 🤖 CRM Analis by AI
+              </Button>
+            </Link>
             <Button
               onClick={() => setIsReportModalOpen(true)}
               className="bg-sky-600 hover:bg-sky-700 text-white font-bold"
