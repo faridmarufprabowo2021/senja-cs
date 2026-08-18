@@ -465,9 +465,9 @@ export default function CrmCopilotPage() {
                                     <span className="text-[10px] font-semibold text-emerald-900">
                                       Target ({act.targetContacts.length}):
                                     </span>
-                                    {act.targetContacts.slice(0, 4).map((tc) => (
+                                    {act.targetContacts.slice(0, 4).map((tc, tcIdx) => (
                                       <span
-                                        key={tc.id}
+                                        key={`${act.id}-${tc.id}-${tcIdx}`}
                                         className="rounded-md bg-white border border-emerald-300 px-1.5 py-0.5 text-[10px] font-medium text-emerald-900"
                                       >
                                         {tc.name}
@@ -534,9 +534,9 @@ export default function CrmCopilotPage() {
                         <span>Kontak Rekomendasi Siap Dihubungi:</span>
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
-                        {m.recommendations.map((rec) => (
+                        {m.recommendations.map((rec, rIdx) => (
                           <div
-                            key={rec.contactId}
+                            key={`${m.id}-${rec.contactId}-${rIdx}`}
                             className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col justify-between"
                           >
                             <div>
