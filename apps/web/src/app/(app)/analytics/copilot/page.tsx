@@ -16,6 +16,10 @@ import {
   HelpCircle,
   BarChart3,
   User,
+  Zap,
+  CheckCircle2,
+  Loader2,
+  Users,
 } from "lucide-react";
 import { Badge, Button, Card, PageHeader } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -30,11 +34,20 @@ type RecommendedContact = {
   lastMessage?: string;
 };
 
+type RecommendedAction = {
+  id: string;
+  actionType: "contextual_followup" | "send_booking_reminder" | "send_payment_link";
+  title: string;
+  description: string;
+  targetContacts: { id: string; name: string; phone: string }[];
+};
+
 type CopilotMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
   recommendations?: RecommendedContact[];
+  actions?: RecommendedAction[];
   createdAt: string;
 };
 
@@ -80,6 +93,11 @@ export default function CrmCopilotPage() {
   const [inputPrompt, setInputPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
+
+  // Track Action Execution status per action.id
+  const [executingActionId, setExecutingActionId] = useState<string | null>(null);
+  const [actionStatuses, setActionStatuses] = useState<Record<string, { status: "success" | "error"; message: string }>>({});
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchSessions = async () => {
@@ -107,6 +125,7 @@ export default function CrmCopilotPage() {
           role: m.role,
           content: m.content,
           recommendations: m.metadata?.recommendations || [],
+          actions: m.metadata?.actions || [],
           createdAt: m.createdAt,
         })),
       );
@@ -180,6 +199,7 @@ export default function CrmCopilotPage() {
         messageId: string;
         content: string;
         recommendations: RecommendedContact[];
+        actions?: RecommendedAction[];
         createdAt: string;
       }>("/crm-copilot/chat", {
         method: "POST",
@@ -199,6 +219,7 @@ export default function CrmCopilotPage() {
         role: "assistant",
         content: res.content,
         recommendations: res.recommendations || [],
+        actions: res.actions || [],
         createdAt: res.createdAt,
       };
 
@@ -215,6 +236,51 @@ export default function CrmCopilotPage() {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExecuteAction = async (action: RecommendedAction) => {
+    setExecutingActionId(action.id);
+    try {
+      const contactIds = action.targetContacts.map((c) => c.id);
+      const res = await api<{ ok: boolean; executedCount: number; details: string }>(
+        "/crm-copilot/execute-action",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            actionType: action.actionType,
+            contactIds,
+          }),
+        },
+      );
+
+      if (res.ok) {
+        setActionStatuses((prev) => ({
+          ...prev,
+          [action.id]: {
+            status: "success",
+            message: `✅ Berhasil! ${res.details}`,
+          },
+        }));
+      } else {
+        setActionStatuses((prev) => ({
+          ...prev,
+          [action.id]: {
+            status: "error",
+            message: `❌ ${res.details || "Gagal mengesksekusi tindakan AI"}`,
+          },
+        }));
+      }
+    } catch (err) {
+      setActionStatuses((prev) => ({
+        ...prev,
+        [action.id]: {
+          status: "error",
+          message: err instanceof Error ? `❌ ${err.message}` : "❌ Gagal eksekusi",
+        },
+      }));
+    } finally {
+      setExecutingActionId(null);
     }
   };
 
@@ -289,7 +355,7 @@ export default function CrmCopilotPage() {
               </Badge>
             </div>
             <p className="text-xs text-[var(--color-muted)]">
-              Konsultasikan kesehatan pipeline, HOT leads, alasan gagal closing, &amp; evaluasi performa CRM secara real-time.
+              Konsultasikan kesehatan pipeline, HOT leads, alasan gagal closing, &amp; eksekusi tindakan WA otomatis.
             </p>
           </div>
           <Link href="/analytics">
@@ -365,6 +431,98 @@ export default function CrmCopilotPage() {
                       {m.content}
                     </div>
                   )}
+
+                  {/* 1-Click Autonomous Action Boxes */}
+                  {m.role === "assistant" && m.actions && m.actions.length > 0 ? (
+                    <div className="mt-4 border-t border-slate-200/80 pt-3 space-y-3">
+                      {m.actions.map((act) => {
+                        const statusObj = actionStatuses[act.id];
+                        const isExecuting = executingActionId === act.id;
+
+                        return (
+                          <div
+                            key={act.id}
+                            className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 shadow-xs"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-2.5">
+                                <div className="p-1.5 rounded-lg bg-emerald-600 text-white mt-0.5">
+                                  <Zap className="h-4 w-4" />
+                                </div>
+                                <div>
+                                  <h4 className="text-xs font-bold text-emerald-950 flex items-center gap-2">
+                                    <span>{act.title}</span>
+                                    <span className="text-[10px] font-mono font-normal bg-emerald-200/80 text-emerald-800 px-2 py-0.5 rounded-full">
+                                      🧠 Personal &amp; Berbasis Konteks
+                                    </span>
+                                  </h4>
+                                  <p className="mt-1 text-[11px] text-emerald-800 leading-relaxed">
+                                    {act.description}
+                                  </p>
+
+                                  <div className="mt-2 flex flex-wrap items-center gap-1">
+                                    <Users className="h-3 w-3 text-emerald-700" />
+                                    <span className="text-[10px] font-semibold text-emerald-900">
+                                      Target ({act.targetContacts.length}):
+                                    </span>
+                                    {act.targetContacts.slice(0, 4).map((tc) => (
+                                      <span
+                                        key={tc.id}
+                                        className="rounded-md bg-white border border-emerald-300 px-1.5 py-0.5 text-[10px] font-medium text-emerald-900"
+                                      >
+                                        {tc.name}
+                                      </span>
+                                    ))}
+                                    {act.targetContacts.length > 4 && (
+                                      <span className="text-[10px] text-emerald-700">
+                                        +{act.targetContacts.length - 4} lainnya
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex-shrink-0">
+                                {statusObj ? (
+                                  <div
+                                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold ${
+                                      statusObj.status === "success"
+                                        ? "bg-emerald-600 text-white"
+                                        : "bg-rose-600 text-white"
+                                    }`}
+                                  >
+                                    {statusObj.status === "success" && (
+                                      <CheckCircle2 className="h-4 w-4" />
+                                    )}
+                                    <span>{statusObj.message}</span>
+                                  </div>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    disabled={isExecuting}
+                                    onClick={() => void handleExecuteAction(act)}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-sm"
+                                  >
+                                    {isExecuting ? (
+                                      <>
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        <span>Menyusun &amp; Kirim WA...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Zap className="h-3.5 w-3.5 fill-current" />
+                                        <span>⚡ Eksekusi Follow-Up AI Personal</span>
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
 
                   {/* Recommendations Cards Grid */}
                   {m.role === "assistant" &&
@@ -452,7 +610,7 @@ export default function CrmCopilotPage() {
               type="text"
               value={inputPrompt}
               onChange={(e) => setInputPrompt(e.target.value)}
-              placeholder="Tanyakan sesuatu tentang prospek, closing, atau performa CRM toko Anda..."
+              placeholder="Tanyakan sesuatu tentang prospek, closing, atau eksekusi tindakan WA..."
               disabled={loading}
               className="flex-1 rounded-xl border border-[var(--color-line)] bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-[var(--color-accent)] focus:bg-white transition"
             />

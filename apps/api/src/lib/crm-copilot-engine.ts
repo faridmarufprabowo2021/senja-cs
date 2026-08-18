@@ -10,9 +10,18 @@ export type RecommendedContact = {
   lastMessage?: string;
 };
 
+export type RecommendedAction = {
+  id: string;
+  actionType: "contextual_followup" | "send_booking_reminder" | "send_payment_link";
+  title: string;
+  description: string;
+  targetContacts: { id: string; name: string; phone: string }[];
+};
+
 export type CrmCopilotAnalysisResult = {
   content: string;
   recommendations: RecommendedContact[];
+  actions?: RecommendedAction[];
 };
 
 export async function aggregateCrmContext(tenantId: string) {
@@ -175,6 +184,29 @@ ATURAN STRICT FORMATTING PENULISAN:
     { role: "user" as const, content: userPrompt },
   ];
 
+  // Construct structured actionable recommendations
+  const actions: RecommendedAction[] = [];
+
+  if (context.hotLeads.length > 0) {
+    actions.push({
+      id: "act-followup-personal",
+      actionType: "contextual_followup",
+      title: "Follow-Up Personal Berbasis Konteks Chat",
+      description: `Kirim WA personal ke ${context.hotLeads.length} HOT/WARM leads berdasarkan riwayat percakapan sebelumnya & voucher promo aktif toko.`,
+      targetContacts: context.hotLeads.map((l) => ({ id: l.contactId, name: l.name, phone: l.phone })),
+    });
+  }
+
+  if (context.overdueCount > 0 && context.overdueList.length > 0) {
+    actions.push({
+      id: "act-overdue-remind",
+      actionType: context.vertical === "booking" ? "send_booking_reminder" : "send_payment_link",
+      title: context.vertical === "booking" ? "Kirim WA Pengingat Booking" : "Kirim Link Pembayaran QRIS",
+      description: `Eksekusi pesan pengingat ke ${context.overdueList.length} chat yang macet > 2 jam.`,
+      targetContacts: context.overdueList.map((o) => ({ id: o.contactId, name: o.name, phone: o.phone })),
+    });
+  }
+
   try {
     const res = await chatComplete(messagesPayload);
     const textContent = res.content || "Maaf, AI Copilot sedang memproses data. Silakan coba kembali.";
@@ -182,12 +214,14 @@ ATURAN STRICT FORMATTING PENULISAN:
     return {
       content: textContent,
       recommendations: context.hotLeads,
+      actions,
     };
   } catch (err) {
     console.error("[crm-copilot-engine] Error generating LLM analysis", err);
     return {
       content: "Mohon maaf, terjadi kendala saat menganalisis data CRM. Silakan coba beberapa saat lagi.",
       recommendations: context.hotLeads,
+      actions,
     };
   }
 }

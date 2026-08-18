@@ -3,6 +3,11 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth, requireTenant } from "../lib/auth.js";
 import { runCrmCopilotAnalysis } from "../lib/crm-copilot-engine.js";
+import {
+  executeBookingReminderAction,
+  executeContextualFollowupAction,
+  executePaymentLinkAction,
+} from "../lib/crm-copilot-executor.js";
 
 export async function crmCopilotRoutes(app: FastifyInstance) {
   app.addHook("preHandler", async (request, reply) => {
@@ -133,13 +138,16 @@ export async function crmCopilotRoutes(app: FastifyInstance) {
       chatHistory,
     });
 
-    // Save assistant message with recommendations metadata
+    // Save assistant message with recommendations & actions metadata
     const botMessage = await prisma.crmCopilotMessage.create({
       data: {
         sessionId: session.id,
         role: "assistant",
         content: analysisResult.content,
-        metadata: { recommendations: analysisResult.recommendations } as any,
+        metadata: {
+          recommendations: analysisResult.recommendations,
+          actions: analysisResult.actions,
+        } as any,
       },
     });
 
@@ -155,8 +163,37 @@ export async function crmCopilotRoutes(app: FastifyInstance) {
       role: "assistant",
       content: analysisResult.content,
       recommendations: analysisResult.recommendations,
+      actions: analysisResult.actions,
       createdAt: botMessage.createdAt.toISOString(),
     };
+  });
+
+  // POST 1-Click Autonomous Action Execution by AI
+  app.post("/crm-copilot/execute-action", async (request, reply) => {
+    const tenantId = request.tenant.tenantId;
+    const body = z
+      .object({
+        actionType: z.enum(["contextual_followup", "send_booking_reminder", "send_payment_link"]),
+        contactIds: z.array(z.string()).min(1),
+      })
+      .parse(request.body);
+
+    if (body.actionType === "contextual_followup") {
+      const res = await executeContextualFollowupAction(tenantId, body.contactIds);
+      return res;
+    }
+
+    if (body.actionType === "send_booking_reminder") {
+      const res = await executeBookingReminderAction(tenantId, body.contactIds);
+      return res;
+    }
+
+    if (body.actionType === "send_payment_link") {
+      const res = await executePaymentLinkAction(tenantId, body.contactIds);
+      return res;
+    }
+
+    return reply.code(400).send({ error: "Tipe tindakan tidak dikenali" });
   });
 
   // DELETE copilot session
