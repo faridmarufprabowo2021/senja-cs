@@ -382,7 +382,7 @@ export default function CrmCopilotPage() {
                                   {rec.name}
                                 </span>
                                 <Badge
-                                  tone={rec.intent === "hot" ? "amber" : "accent"}
+                                  tone={rec.intent === "hot" ? "warn" : "accent"}
                                   className="text-[9px] uppercase font-mono"
                                 >
                                   {rec.intent}

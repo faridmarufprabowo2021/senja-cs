@@ -18,6 +18,7 @@ import {
   PanelLeftClose,
   Settings,
   Smartphone,
+  Sparkles,
   Truck,
   Users,
 } from "lucide-react";
