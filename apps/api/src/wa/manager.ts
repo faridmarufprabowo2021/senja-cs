@@ -395,9 +395,9 @@ class WaManager {
     msg: any,
   ) {
     const rawJid = msg.key?.remoteJid || msg.from || msg.chatId;
-    console.info(`[waManager] handleInbound called for tenant: ${tenantId}, jid: ${rawJid}, fromMe: ${msg.key?.fromMe}`);
-    // Normalization logic for inbound payload (Baileys or OpenWA webhook body)
-    if (msg.key?.fromMe || msg.fromMe) return;
+    const isFromMe = Boolean(msg.key?.fromMe || msg.fromMe);
+
+    console.info(`[waManager] handleInbound called for tenant: ${tenantId}, jid: ${rawJid}, fromMe: ${isFromMe}`);
     if (!rawJid || rawJid.endsWith("@g.us") || rawJid === "status@broadcast" || rawJid.endsWith("@newsletter")) {
       console.info(`[waManager] Ignored JID: ${rawJid} (group, status, or newsletter)`);
       return;
@@ -421,23 +421,62 @@ class WaManager {
       }
     }
 
-    const body =
-      msg.message?.conversation ||
-      msg.message?.extendedTextMessage?.text ||
-      msg.message?.imageMessage?.caption ||
-      msg.message?.documentMessage?.caption ||
+    // Unwrap viewOnce / document / edited message wrappers if present
+    let rawMsgObj = msg.message;
+    if (rawMsgObj?.viewOnceMessage?.message) {
+      rawMsgObj = rawMsgObj.viewOnceMessage.message;
+    } else if (rawMsgObj?.viewOnceMessageV2?.message) {
+      rawMsgObj = rawMsgObj.viewOnceMessageV2.message;
+    } else if (rawMsgObj?.viewOnceMessageV2Extension?.message) {
+      rawMsgObj = rawMsgObj.viewOnceMessageV2Extension.message;
+    } else if (rawMsgObj?.documentWithCaptionMessage?.message) {
+      rawMsgObj = rawMsgObj.documentWithCaptionMessage.message;
+    } else if (rawMsgObj?.editedMessage?.message?.protocolMessage?.editedMessage) {
+      rawMsgObj = rawMsgObj.editedMessage.message.protocolMessage.editedMessage;
+    }
+
+    let body =
+      rawMsgObj?.conversation ||
+      rawMsgObj?.extendedTextMessage?.text ||
+      rawMsgObj?.imageMessage?.caption ||
+      rawMsgObj?.videoMessage?.caption ||
+      rawMsgObj?.documentMessage?.caption ||
       msg.body ||
       msg.caption ||
       "";
-    const hasImage = Boolean(msg.message?.imageMessage || msg.type === "image");
-    const hasDoc = Boolean(msg.message?.documentMessage || msg.type === "document");
-    const hasAudio = Boolean(msg.message?.audioMessage || msg.type === "audio" || msg.type === "ptt");
-    if (!body && !hasImage && !hasDoc && !hasAudio) {
+
+    // Handle interactive responses, buttons, locations, contacts, stickers
+    if (!body) {
+      if (rawMsgObj?.buttonsResponseMessage) {
+        body = rawMsgObj.buttonsResponseMessage.selectedDisplayText || rawMsgObj.buttonsResponseMessage.selectedButtonId || "";
+      } else if (rawMsgObj?.listResponseMessage) {
+        body = rawMsgObj.listResponseMessage.title || rawMsgObj.listResponseMessage.singleSelectReply?.selectedRowId || "";
+      } else if (rawMsgObj?.templateButtonReplyMessage) {
+        body = rawMsgObj.templateButtonReplyMessage.selectedDisplayText || rawMsgObj.templateButtonReplyMessage.selectedId || "";
+      } else if (rawMsgObj?.interactiveResponseMessage?.nativeFlowResponseMessage) {
+        body = rawMsgObj.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson || "";
+      } else if (rawMsgObj?.locationMessage) {
+        body = `[📍 Lokasi: ${rawMsgObj.locationMessage.name || rawMsgObj.locationMessage.comment || `${rawMsgObj.locationMessage.degreesLatitude}, ${rawMsgObj.locationMessage.degreesLongitude}`}]`;
+      } else if (rawMsgObj?.contactMessage) {
+        body = `[👤 Kontak: ${rawMsgObj.contactMessage.displayName || "Kartu Kontak"}]`;
+      } else if (rawMsgObj?.contactsArrayMessage) {
+        body = `[👤 ${rawMsgObj.contactsArrayMessage.contacts?.length || 1} Kartu Kontak]`;
+      } else if (rawMsgObj?.stickerMessage) {
+        body = "[Stiker]";
+      }
+    }
+
+    const hasImage = Boolean(rawMsgObj?.imageMessage || msg.type === "image");
+    const hasDoc = Boolean(rawMsgObj?.documentMessage || msg.type === "document");
+    const hasAudio = Boolean(rawMsgObj?.audioMessage || msg.type === "audio" || msg.type === "ptt");
+    const hasSticker = Boolean(rawMsgObj?.stickerMessage || msg.type === "sticker");
+
+    if (!body && !hasImage && !hasDoc && !hasAudio && !hasSticker) {
       console.info("[waManager] Ignored message without text body/media:", JSON.stringify(msg.message));
       return;
     }
 
-    console.info(`[waManager] Processing inbound message from ${jid}: "${body}"`);
+    console.info(`[waManager] Processing message from ${jid} (fromMe: ${isFromMe}): "${body}"`);
 
     const waMessageId = msg.key?.id || msg.id || `${Date.now()}`;
     const phone = jid.split("@")[0] ?? jid;
@@ -568,9 +607,9 @@ class WaManager {
           channel: "whatsapp",
           status: "bot_active",
           mode: "bot",
-          lastMessagePreview: preview,
+          lastMessagePreview: isFromMe ? `Anda: ${preview}` : preview,
           lastMessageAt: now,
-          unreadCount: 1,
+          unreadCount: isFromMe ? 0 : 1,
         },
       });
     } else {
@@ -578,12 +617,12 @@ class WaManager {
         where: { id: conversation.id },
         data: {
           waSessionId: sessionId || conversation.waSessionId,
-          status: conversation.status === "resolved" ? "bot_active" : conversation.status,
-          mode: conversation.status === "resolved" ? "bot" : conversation.mode,
-          lastMessagePreview: preview,
+          status: isFromMe ? conversation.status : (conversation.status === "resolved" ? "bot_active" : conversation.status),
+          mode: isFromMe ? conversation.mode : (conversation.status === "resolved" ? "bot" : conversation.mode),
+          lastMessagePreview: isFromMe ? `Anda: ${preview}` : preview,
           lastMessageAt: now,
-          unreadCount: { increment: 1 },
-          ...(conversation.followupStageCount > 0 && !conversation.followupConvertedAt
+          ...(isFromMe ? {} : { unreadCount: { increment: 1 } }),
+          ...(!isFromMe && conversation.followupStageCount > 0 && !conversation.followupConvertedAt
             ? {
                 followupConvertedAt: now,
                 followupConvertedStage: conversation.followupStageCount,
@@ -599,9 +638,9 @@ class WaManager {
         data: {
           tenantId,
           conversationId: conversation.id,
-          direction: "in",
-          senderType: "customer",
-          senderName: pushName,
+          direction: isFromMe ? "out" : "in",
+          senderType: isFromMe ? "agent" : "customer",
+          senderName: isFromMe ? "Saya" : pushName,
           type: msgType,
           body: messageBody || preview,
           waMessageId,
@@ -623,6 +662,9 @@ class WaManager {
 
     hub.toTenant(tenantId, "message.created", mapMessage(message));
     hub.toTenant(tenantId, "conversation.updated", mapConversation(full));
+
+    // If message is fromMe, do NOT trigger AI Bot reply
+    if (isFromMe) return;
 
     const effectiveTriggerText = (messageBody || mediaMeta?.imageAnalysis || mediaMeta?.transcript || "").trim();
     if (!effectiveTriggerText) return;
