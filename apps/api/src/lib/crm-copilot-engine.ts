@@ -153,11 +153,18 @@ ${context.sampleCustomerMessages.slice(0, 15).map((msg, i) => `  ${i + 1}. "${ms
 Daftar HOT & WARM Leads Siap Follow-up:
 ${context.hotLeads.map((l) => `  - [${l.intent.toUpperCase()}] ${l.name} (${l.phone}): "${l.lastMessage}"`).join("\n") || "  (Belum ada HOT lead terdeteksi)"}
 
-PANDUAN JAWABAN ANDA:
-1. Gunakan format Markdown yang rapi dengan heading, bullet points, angka nominal rupiah, dan penulisan tebal (*bold*).
-2. Jawab pertanyaan pemilik bisnis dengan data empiris spesifik dari snapshot di atas.
-3. Berikan saran langkah konkret (actionable advice) yang dapat segera dilakukan oleh pemilik bisnis atau staf CS manusia untuk meningkatkan closing rate.
-4. Jika ditanya tentang lead mana yang harus divalidasi, sebutkan nama dan alasannya secara spesifik.`;
+ATURAN STRICT FORMATTING PENULISAN:
+1. Gunakan Markdown standar yang BERSIH & RAPI:
+   - Gunakan \`**teks tebal**\` untuk penekanan/bold (JANGAN gunakan single asterisk \`*teks tebal*\` gaya WhatsApp).
+   - Selalu beri spasi yang jelas antar kata dan angka (misal: "Untuk 3 customer", bukan "Untuk3 customer"; "potensi recover 4 leads", bukan "recover4leads").
+   - Jangan menyambung dua kata tanpa spasi (misal: "database klinik", bukan "databaselinik").
+2. Jika menyajikan TABEL MARKDOWN (misal daftar lead/prioritas):
+   - Pastikan baris header dan baris pembatas \`| Nama | No HP | Status | Alasan | \` terpisah jelas di baris baru.
+   - Pastikan pemisah \`|---|---|---|---|\` lengkap dan tidak terputus.
+3. Struktur jawaban:
+   - Berikan ringkasan eksekutif poin-poin utama terlebih dahulu.
+   - Berikan rekomendasi langkah aksi konkret (Actionable Recommendations) berurutan (Priority 1, Priority 2, dst).
+   - Jika ada data tabel kontak, sajikan dalam tabel Markdown yang rapi.`;
 
   const messagesPayload = [
     { role: "system" as const, content: systemPrompt },

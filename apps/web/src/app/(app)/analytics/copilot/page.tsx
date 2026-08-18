@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Badge, Button, Card, PageHeader } from "@/components/ui";
 import { api } from "@/lib/api";
+import { FormattedMarkdown } from "@/components/FormattedMarkdown";
 
 type RecommendedContact = {
   contactId: string;
@@ -357,9 +358,13 @@ export default function CrmCopilotPage() {
                       : "bg-white border border-[var(--color-line)] text-slate-800"
                   }`}
                 >
-                  <div className="whitespace-pre-wrap text-xs leading-relaxed font-sans">
-                    {m.content}
-                  </div>
+                  {m.role === "assistant" ? (
+                    <FormattedMarkdown content={m.content} />
+                  ) : (
+                    <div className="whitespace-pre-wrap text-xs leading-relaxed font-sans font-medium">
+                      {m.content}
+                    </div>
+                  )}
 
                   {/* Recommendations Cards Grid */}
                   {m.role === "assistant" &&
