@@ -102,89 +102,101 @@ export async function chatComplete(
 
   const requestedModel = (model && model.trim()) || env.LLM_CHAT_MODEL;
 
-  // Attempt 1: Try Primary Provider (OpenAgentic / Custom Gateway) if API key exists
+  // Attempt 1: Try Primary Provider (OpenAgentic / Custom Gateway) with 1x auto-retry on 503
   if (primaryApiKey) {
-    try {
-      const base = env.LLM_BASE_URL.replace(/\/$/, "");
-      const bodyPayload: any = {
-        model: requestedModel,
-        messages,
-        temperature: 0.4,
-        max_tokens: 500,
-      };
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const base = env.LLM_BASE_URL.replace(/\/$/, "");
+        const bodyPayload: any = {
+          model: requestedModel,
+          messages,
+          temperature: 0.4,
+          max_tokens: 500,
+        };
 
-      if (tools && tools.length > 0) {
-        bodyPayload.tools = tools.map((t) => ({
-          type: "function",
-          function: t,
-        }));
-      }
-
-      const res = await fetch(`${base}/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${primaryApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(bodyPayload),
-      });
-      const rawBody = await res.text();
-
-      if (res.ok) {
-        const parsed = parseChatResponseBody(rawBody);
-        if (parsed.ok && (parsed.content || (parsed.toolCalls && parsed.toolCalls.length > 0))) {
-          return {
-            content: parsed.content,
-            toolCalls: parsed.toolCalls,
-          };
+        if (tools && tools.length > 0) {
+          bodyPayload.tools = tools.map((t) => ({
+            type: "function",
+            function: t,
+          }));
         }
+
+        const res = await fetch(`${base}/chat/completions`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${primaryApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(bodyPayload),
+        });
+        const rawBody = await res.text();
+
+        if (res.ok) {
+          const parsed = parseChatResponseBody(rawBody);
+          if (parsed.ok && (parsed.content || (parsed.toolCalls && parsed.toolCalls.length > 0))) {
+            return {
+              content: parsed.content,
+              toolCalls: parsed.toolCalls,
+            };
+          }
+        }
+
+        if (res.status === 503 && attempt === 1) {
+          console.warn("[llm] Primary LLM returned 503 (resetting), retrying in 1.5s...");
+          await new Promise((r) => setTimeout(r, 1500));
+          continue;
+        }
+        console.warn("[llm] Primary LLM API failed, failing over to Groq:", res.status, rawBody.slice(0, 150));
+        break;
+      } catch (err) {
+        console.warn("[llm] Primary LLM fetch error, failing over to Groq:", err);
+        break;
       }
-      console.warn("[llm] Primary LLM API failed, failing over to Groq:", res.status, rawBody.slice(0, 150));
-    } catch (err) {
-      console.warn("[llm] Primary LLM fetch error, failing over to Groq:", err);
     }
   }
 
-  // Attempt 2: Auto Failover to Groq API (High-Speed Llama 3.3 70B) if Groq key exists
+  // Attempt 2: Auto Failover to Groq API (High-Speed Llama 3) if Groq key exists
   if (groqApiKey) {
-    try {
-      const groqModel = "llama-3.3-70b-versatile";
-      const bodyPayload: any = {
-        model: groqModel,
-        messages,
-        temperature: 0.4,
-        max_tokens: 600,
-      };
+    const groqModels = ["llama-3.1-8b-instant", "llama3-70b-8192", "mixtral-8x7b-32768"];
+    for (const groqModel of groqModels) {
+      try {
+        const bodyPayload: any = {
+          model: groqModel,
+          messages,
+          temperature: 0.4,
+          max_tokens: 600,
+        };
 
-      if (tools && tools.length > 0) {
-        bodyPayload.tools = tools.map((t) => ({
-          type: "function",
-          function: t,
-        }));
-      }
-
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${groqApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(bodyPayload),
-      });
-      const rawBody = await res.text();
-
-      if (res.ok) {
-        const parsed = parseChatResponseBody(rawBody);
-        if (parsed.ok && (parsed.content || (parsed.toolCalls && parsed.toolCalls.length > 0))) {
-          return {
-            content: parsed.content,
-            toolCalls: parsed.toolCalls,
-          };
+        if (tools && tools.length > 0) {
+          bodyPayload.tools = tools.map((t) => ({
+            type: "function",
+            function: t,
+          }));
         }
+
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${groqApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(bodyPayload),
+        });
+        const rawBody = await res.text();
+
+        if (res.ok) {
+          const parsed = parseChatResponseBody(rawBody);
+          if (parsed.ok && (parsed.content || (parsed.toolCalls && parsed.toolCalls.length > 0))) {
+            return {
+              content: parsed.content,
+              toolCalls: parsed.toolCalls,
+            };
+          }
+        }
+        console.warn(`[llm] Groq LLM model ${groqModel} failed:`, res.status, rawBody.slice(0, 150));
+      } catch (groqErr) {
+        console.warn(`[llm] Groq LLM model ${groqModel} fetch error:`, groqErr);
       }
-      console.warn("[llm] Groq LLM failover failed:", res.status, rawBody.slice(0, 150));
-    } catch (groqErr) {
-      console.warn("[llm] Groq LLM failover fetch error:", groqErr);
     }
   }
 
@@ -210,7 +222,7 @@ function extractiveAnswer(messages: ChatMessage[]): string {
     context = alt?.[1]?.trim() ?? "";
   }
   if (!context || context === "(tidak ada)") {
-    return "Maaf, saya belum menemukan informasi di knowledge base. Ketik *cs* untuk dihubungkan ke agent kami.";
+    return "Maaf, saya belum menemukan informasi di knowledge base. Silakan ketik *cs* bila ingin dihubungkan ke agent kami.";
   }
 
   const q = user.toLowerCase().trim();
@@ -219,7 +231,7 @@ function extractiveAnswer(messages: ChatMessage[]): string {
       q,
     )
   ) {
-    return "Halo! Ada yang bisa kami bantu? Silakan tanya jam buka, harga, booking, atau layanan kami.";
+    return "Halo! Ada yang bisa kami bantu? Silakan tanya jadwal dokter, harga layanan, booking, atau info tempat kami.";
   }
 
   const firstChunk = context.split(/\n---\n/)[0]?.trim() ?? context;
@@ -229,8 +241,5 @@ function extractiveAnswer(messages: ChatMessage[]): string {
   const short =
     cleaned.length > 400 ? cleaned.slice(0, 380).trim() + "…" : cleaned;
 
-  if (q.includes("harga") || q.includes("berapa") || q.includes("biaya")) {
-    return `${short}\n\n_Jawaban dari knowledge base (LLM sementara tidak tersedia). Ketik *cs* bila butuh agent._`;
-  }
-  return `${short}\n\n_Sumber knowledge base (LLM sementara tidak tersedia). Ketik *cs* untuk agent._`;
+  return short;
 }
