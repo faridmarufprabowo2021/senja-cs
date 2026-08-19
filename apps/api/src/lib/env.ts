@@ -22,6 +22,9 @@ const schema = z.object({
   MIDTRANS_IS_PRODUCTION: z.coerce.boolean().default(false),
   SHIPPING_API_KEY: z.string().optional(),
   GROQ_API_KEY: z.string().optional(),
+  KAGIRO_API_KEY: z.string().optional().default("sk-28d3cbf62fd8fb00-xz8f3p-a59cd92d"),
+  KAGIRO_BASE_URL: z.string().default("https://api.kagiro.net/v1"),
+  KAGIRO_CHAT_MODEL: z.string().default("kagiro/qwen3-8max"),
 });
 
 export const env = schema.parse({
@@ -42,6 +45,9 @@ export const env = schema.parse({
   MIDTRANS_IS_PRODUCTION: process.env.MIDTRANS_IS_PRODUCTION,
   SHIPPING_API_KEY: process.env.SHIPPING_API_KEY || process.env.BINDERBYTE_API_KEY,
   GROQ_API_KEY: process.env.GROQ_API_KEY || undefined,
+  KAGIRO_API_KEY: process.env.KAGIRO_API_KEY || "sk-28d3cbf62fd8fb00-xz8f3p-a59cd92d",
+  KAGIRO_BASE_URL: process.env.KAGIRO_BASE_URL || "https://api.kagiro.net/v1",
+  KAGIRO_CHAT_MODEL: process.env.KAGIRO_CHAT_MODEL || "kagiro/qwen3-8max",
 });
 
 export const hasLlm = Boolean(env.LLM_API_KEY);

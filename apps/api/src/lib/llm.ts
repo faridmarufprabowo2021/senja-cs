@@ -93,10 +93,11 @@ export async function chatComplete(
   tools?: any[],
 ): Promise<ChatCompleteResponse> {
   const primaryApiKey = env.LLM_API_KEY;
+  const kagiroApiKey = env.KAGIRO_API_KEY;
   const groqApiKey = env.GROQ_API_KEY;
 
-  if (!primaryApiKey && !groqApiKey) {
-    console.warn("chatComplete: no LLM_API_KEY or GROQ_API_KEY — extractive fallback");
+  if (!primaryApiKey && !kagiroApiKey && !groqApiKey) {
+    console.warn("chatComplete: no LLM keys configured — extractive fallback");
     return { content: extractiveAnswer(messages) };
   }
 
@@ -146,12 +147,56 @@ export async function chatComplete(
           await new Promise((r) => setTimeout(r, 1500));
           continue;
         }
-        console.warn("[llm] Primary LLM API failed, failing over to Groq:", res.status, rawBody.slice(0, 150));
+        console.warn("[llm] Primary LLM API failed, failing over to Kagiro/Groq:", res.status, rawBody.slice(0, 150));
         break;
       } catch (err) {
-        console.warn("[llm] Primary LLM fetch error, failing over to Groq:", err);
+        console.warn("[llm] Primary LLM fetch error, failing over to Kagiro/Groq:", err);
         break;
       }
+    }
+  }
+
+  // Attempt 2: Auto Failover to Kagiro API (kagiro/qwen3-8max)
+  if (kagiroApiKey) {
+    try {
+      const kagiroBase = env.KAGIRO_BASE_URL.replace(/\/$/, "");
+      const kagiroModel = env.KAGIRO_CHAT_MODEL;
+      const bodyPayload: any = {
+        model: kagiroModel,
+        messages,
+        temperature: 0.4,
+        max_tokens: 600,
+      };
+
+      if (tools && tools.length > 0) {
+        bodyPayload.tools = tools.map((t) => ({
+          type: "function",
+          function: t,
+        }));
+      }
+
+      const res = await fetch(`${kagiroBase}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${kagiroApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bodyPayload),
+      });
+      const rawBody = await res.text();
+
+      if (res.ok) {
+        const parsed = parseChatResponseBody(rawBody);
+        if (parsed.ok && (parsed.content || (parsed.toolCalls && parsed.toolCalls.length > 0))) {
+          return {
+            content: parsed.content,
+            toolCalls: parsed.toolCalls,
+          };
+        }
+      }
+      console.warn(`[llm] Kagiro LLM model ${kagiroModel} failed:`, res.status, rawBody.slice(0, 150));
+    } catch (kagiroErr) {
+      console.warn(`[llm] Kagiro LLM fetch error:`, kagiroErr);
     }
   }
 
