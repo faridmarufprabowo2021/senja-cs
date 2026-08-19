@@ -66,7 +66,7 @@ function statusTone(status: ConversationStatus) {
   if (status === "bot_active") return "bot" as const;
   if (status === "assigned") return "human" as const;
   if (status === "resolved") return "success" as const;
-  return "neutral" as const;
+  return "default" as const;
 }
 
 export function ChatInsightSidebar({
@@ -477,7 +477,7 @@ export function ChatInsightSidebar({
             <div
               className={cn(
                 "mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold text-white shadow-xs",
-                avatarGradient(conversation.contact?.name ?? "Pelanggan"),
+                avatarGradient(conversation.contact?.avatarHue ?? 200),
               )}
             >
               {initials(conversation.contact?.name ?? "Pelanggan")}
