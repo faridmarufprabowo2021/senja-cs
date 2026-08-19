@@ -103,7 +103,52 @@ export async function chatComplete(
 
   const requestedModel = (model && model.trim()) || env.LLM_CHAT_MODEL;
 
-  // Attempt 1: Try Primary Provider (OpenAgentic / Custom Gateway) with 1x auto-retry on 503
+  // Attempt 1: Try Kagiro API (kagiro/qwen3-8max) as Primary Provider for testing
+  if (kagiroApiKey) {
+    try {
+      const kagiroBase = env.KAGIRO_BASE_URL.replace(/\/$/, "");
+      const kagiroModel = env.KAGIRO_CHAT_MODEL;
+      const bodyPayload: any = {
+        model: kagiroModel,
+        messages,
+        temperature: 0.4,
+        max_tokens: 600,
+      };
+
+      if (tools && tools.length > 0) {
+        bodyPayload.tools = tools.map((t) => ({
+          type: "function",
+          function: t,
+        }));
+      }
+
+      const res = await fetch(`${kagiroBase}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${kagiroApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bodyPayload),
+      });
+      const rawBody = await res.text();
+
+      if (res.ok) {
+        const parsed = parseChatResponseBody(rawBody);
+        if (parsed.ok && (parsed.content || (parsed.toolCalls && parsed.toolCalls.length > 0))) {
+          console.log(`[llm] Answered via Primary Kagiro LLM (${kagiroModel})`);
+          return {
+            content: parsed.content,
+            toolCalls: parsed.toolCalls,
+          };
+        }
+      }
+      console.warn(`[llm] Kagiro LLM model ${kagiroModel} failed:`, res.status, rawBody.slice(0, 150));
+    } catch (kagiroErr) {
+      console.warn(`[llm] Kagiro LLM fetch error:`, kagiroErr);
+    }
+  }
+
+  // Attempt 2: Auto Failover to OpenAgentic / Custom Gateway
   if (primaryApiKey) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
@@ -143,60 +188,16 @@ export async function chatComplete(
         }
 
         if (res.status === 503 && attempt === 1) {
-          console.warn("[llm] Primary LLM returned 503 (resetting), retrying in 1.5s...");
+          console.warn("[llm] OpenAgentic LLM returned 503 (resetting), retrying in 1.5s...");
           await new Promise((r) => setTimeout(r, 1500));
           continue;
         }
-        console.warn("[llm] Primary LLM API failed, failing over to Kagiro/Groq:", res.status, rawBody.slice(0, 150));
+        console.warn("[llm] OpenAgentic LLM API failed, failing over to Groq:", res.status, rawBody.slice(0, 150));
         break;
       } catch (err) {
-        console.warn("[llm] Primary LLM fetch error, failing over to Kagiro/Groq:", err);
+        console.warn("[llm] OpenAgentic LLM fetch error, failing over to Groq:", err);
         break;
       }
-    }
-  }
-
-  // Attempt 2: Auto Failover to Kagiro API (kagiro/qwen3-8max)
-  if (kagiroApiKey) {
-    try {
-      const kagiroBase = env.KAGIRO_BASE_URL.replace(/\/$/, "");
-      const kagiroModel = env.KAGIRO_CHAT_MODEL;
-      const bodyPayload: any = {
-        model: kagiroModel,
-        messages,
-        temperature: 0.4,
-        max_tokens: 600,
-      };
-
-      if (tools && tools.length > 0) {
-        bodyPayload.tools = tools.map((t) => ({
-          type: "function",
-          function: t,
-        }));
-      }
-
-      const res = await fetch(`${kagiroBase}/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${kagiroApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(bodyPayload),
-      });
-      const rawBody = await res.text();
-
-      if (res.ok) {
-        const parsed = parseChatResponseBody(rawBody);
-        if (parsed.ok && (parsed.content || (parsed.toolCalls && parsed.toolCalls.length > 0))) {
-          return {
-            content: parsed.content,
-            toolCalls: parsed.toolCalls,
-          };
-        }
-      }
-      console.warn(`[llm] Kagiro LLM model ${kagiroModel} failed:`, res.status, rawBody.slice(0, 150));
-    } catch (kagiroErr) {
-      console.warn(`[llm] Kagiro LLM fetch error:`, kagiroErr);
     }
   }
 
