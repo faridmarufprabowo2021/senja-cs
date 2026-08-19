@@ -107,10 +107,11 @@ export class BaileysDriver implements IWaDriver {
       auth: state,
       printQRInTerminal: false,
       syncFullHistory: false,
-      markOnlineOnConnect: false,
+      markOnlineOnConnect: true,
       generateHighQualityLinkPreview: false,
-      retryRequestDelayMs: 250,
+      retryRequestDelayMs: 500,
       maxMsgRetryCount: 5,
+      browser: ["Ubuntu", "Chrome", "22.04.4"],
       getMessage: async (key: any) => {
         if (!key?.id) return undefined;
         try {
@@ -130,9 +131,7 @@ export class BaileysDriver implements IWaDriver {
         } catch (err) {
           console.warn("[wa-baileys] getMessage retry lookup error:", err);
         }
-        return {
-          conversation: "Pesan terkirim",
-        };
+        return undefined;
       },
     });
 
