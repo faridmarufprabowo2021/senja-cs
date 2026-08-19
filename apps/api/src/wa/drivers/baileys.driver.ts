@@ -21,6 +21,7 @@ export class BaileysDriver implements IWaDriver {
   private suppressReconnect = false;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private rawMessageCache = new Map<string, any>();
 
   constructor(
     private tenantId: string,
@@ -114,12 +115,22 @@ export class BaileysDriver implements IWaDriver {
       browser: ["Ubuntu", "Chrome", "22.04.4"],
       getMessage: async (key: any) => {
         if (!key?.id) return undefined;
+        // 1. Check in-memory LRU cache first
+        const cached = this.rawMessageCache.get(key.id);
+        if (cached) return cached;
+
+        // 2. Fallback: Lookup rawProto from PostgreSQL DB
         try {
           const dbMsg = await prisma.message.findFirst({
             where: {
               waMessageId: key.id,
             },
           });
+          if (dbMsg?.rawProto) {
+            const parsed = JSON.parse(dbMsg.rawProto);
+            this.rawMessageCache.set(key.id, parsed);
+            return parsed;
+          }
           if (dbMsg?.body) {
             return {
               conversation: dbMsg.body,
@@ -161,6 +172,14 @@ export class BaileysDriver implements IWaDriver {
         this.qr = undefined;
         this.reconnectAttempt = 0;
         this.clearReconnect();
+        
+        // Asynchronously replenish E2EE prekeys on WhatsApp servers
+        try {
+          await this.socket?.uploadPreKeys(50);
+        } catch (err) {
+          console.warn("[wa-baileys] uploadPreKeys non-fatal error:", err);
+        }
+
         const phone =
           this.socket.user?.id?.split(":")[0]?.replace(/\D/g, "") ?? null;
         const session = await prisma.waSession.update({
@@ -304,7 +323,20 @@ export class BaileysDriver implements IWaDriver {
       );
     }
     const targetJid = await this.resolvePhoneJid(jid);
-    return this.socket.sendMessage(targetJid, { text });
+    const sent = await this.socket.sendMessage(targetJid, { text });
+
+    if (sent?.key?.id && sent?.message) {
+      this.rawMessageCache.set(sent.key.id, sent.message);
+      if (this.rawMessageCache.size > 1000) {
+        const firstKey = this.rawMessageCache.keys().next().value;
+        if (firstKey) this.rawMessageCache.delete(firstKey);
+      }
+    }
+
+    return {
+      ...sent,
+      rawProto: sent?.message ? JSON.stringify(sent.message) : undefined,
+    };
   }
 
   async sendMedia(jid: string, opts: WaSendMediaOptions) {
@@ -314,26 +346,40 @@ export class BaileysDriver implements IWaDriver {
       );
     }
     const targetJid = await this.resolvePhoneJid(jid);
+    let sent: any;
     if (opts.isVideo) {
-      return this.socket.sendMessage(targetJid, {
+      sent = await this.socket.sendMessage(targetJid, {
         video: opts.buffer,
         caption: opts.caption,
         mimetype: opts.mimetype || "video/mp4",
       });
-    }
-    if (opts.isImage) {
-      return this.socket.sendMessage(targetJid, {
+    } else if (opts.isImage) {
+      sent = await this.socket.sendMessage(targetJid, {
         image: opts.buffer,
         caption: opts.caption,
         mimetype: opts.mimetype || "image/jpeg",
       });
+    } else {
+      sent = await this.socket.sendMessage(targetJid, {
+        document: opts.buffer,
+        fileName: opts.fileName,
+        mimetype: opts.mimetype || "application/octet-stream",
+        caption: opts.caption,
+      });
     }
-    return this.socket.sendMessage(targetJid, {
-      document: opts.buffer,
-      fileName: opts.fileName,
-      mimetype: opts.mimetype || "application/octet-stream",
-      caption: opts.caption,
-    });
+
+    if (sent?.key?.id && sent?.message) {
+      this.rawMessageCache.set(sent.key.id, sent.message);
+      if (this.rawMessageCache.size > 1000) {
+        const firstKey = this.rawMessageCache.keys().next().value;
+        if (firstKey) this.rawMessageCache.delete(firstKey);
+      }
+    }
+
+    return {
+      ...sent,
+      rawProto: sent?.message ? JSON.stringify(sent.message) : undefined,
+    };
   }
 
   async sendPresence(jid: string, presence: "composing" | "recording" | "paused" | "available" = "composing") {
