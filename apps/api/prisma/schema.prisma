@@ -324,6 +324,7 @@ model Message {
   type           MessageType      @default(text)
   body           String
   waMessageId    String?
+  rawProto       String?          @db.Text
   metadata       Json?
   createdAt      DateTime         @default(now())
   tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
