@@ -408,15 +408,23 @@ class WaManager {
     const senderPn = msg.key?.participant_pn || msg.sender_pn || msg.participant_pn || msg.key?.remoteJidAlt;
     const pushName = (msg.pushName || msg.sender?.pushname || "").trim();
 
-    if (jid.endsWith("@lid")) {
+    if (jid.endsWith("@lid") || jid.startsWith("301") || jid.startsWith("509")) {
       if (senderPn && senderPn.endsWith("@s.whatsapp.net")) {
         jid = senderPn;
-      } else if (pushName) {
-        const matchByName = await prisma.contact.findFirst({
-          where: { tenantId, name: pushName, waJid: { endsWith: "@s.whatsapp.net" } },
+      } else {
+        const existing = await prisma.contact.findFirst({
+          where: {
+            tenantId,
+            waJid: { endsWith: "@s.whatsapp.net" },
+            OR: [
+              ...(pushName ? [{ name: { equals: pushName, mode: "insensitive" } }] : []),
+              { waJid: { endsWith: "@s.whatsapp.net" } },
+            ],
+          },
+          orderBy: { lastMessageAt: "desc" },
         });
-        if (matchByName) {
-          jid = matchByName.waJid;
+        if (existing && pushName && existing.name && pushName.toLowerCase().includes(existing.name.toLowerCase().split(" ")[0])) {
+          jid = existing.waJid;
         }
       }
     }
