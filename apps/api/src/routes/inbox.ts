@@ -130,6 +130,7 @@ export async function inboxRoutes(app: FastifyInstance) {
     }
 
     let waMessageId: string | null = null;
+    let rawProto: string | null = null;
     try {
       const sent = await waManager.sendText(
         conv.waSessionId,
@@ -137,6 +138,7 @@ export async function inboxRoutes(app: FastifyInstance) {
         body.body,
       );
       waMessageId = sent?.key?.id ?? null;
+      rawProto = (sent as any)?.rawProto ?? (sent?.message ? JSON.stringify(sent.message) : null);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       return reply.code(503).send({
@@ -158,6 +160,7 @@ export async function inboxRoutes(app: FastifyInstance) {
         type: "text",
         body: body.body,
         waMessageId,
+        rawProto,
       },
     });
 
@@ -212,6 +215,7 @@ export async function inboxRoutes(app: FastifyInstance) {
     const mediaUrl = publicMediaUrl(relativePath);
 
     let waMessageId: string | null = null;
+    let rawProto: string | null = null;
     try {
       const sent = await waManager.sendMedia(conv.waSessionId, conv.contact.waJid, {
         buffer: buf,
@@ -221,6 +225,7 @@ export async function inboxRoutes(app: FastifyInstance) {
         isImage,
       });
       waMessageId = sent?.key?.id ?? null;
+      rawProto = (sent as any)?.rawProto ?? (sent?.message ? JSON.stringify(sent.message) : null);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       return reply.code(503).send({
@@ -243,6 +248,7 @@ export async function inboxRoutes(app: FastifyInstance) {
         type: isImage ? "image" : "document",
         body: caption || preview,
         waMessageId,
+        rawProto,
         metadata: {
           mediaUrl,
           mimeType: mime,

@@ -790,6 +790,7 @@ export async function sendBotMessage(
     .trim();
 
   let waMessageId: string | undefined;
+  let rawProto: string | undefined;
   if (conversation.waSessionId && conversation.contact.waJid) {
     try {
       const sent = await waManager.sendText(
@@ -798,6 +799,7 @@ export async function sendBotMessage(
         cleanedText || text,
       );
       waMessageId = sent?.key?.id ?? undefined;
+      rawProto = (sent as any)?.rawProto ?? (sent?.message ? JSON.stringify(sent.message) : undefined);
 
       // Clear "mengetik..." presence indicator after reply is sent
       void waManager.sendPresence(conversation.waSessionId, conversation.contact.waJid, "paused");
@@ -949,6 +951,7 @@ export async function sendBotMessage(
       type: "text",
       body: text,
       waMessageId: waMessageId ?? null,
+      rawProto: rawProto ?? null,
       metadata: metadata as object,
     },
   });
