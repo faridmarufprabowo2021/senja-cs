@@ -157,7 +157,7 @@ export async function chatComplete(
 
   // Attempt 2: Auto Failover to Groq API (High-Speed Llama 3) if Groq key exists
   if (groqApiKey) {
-    const groqModels = ["llama-3.1-8b-instant", "llama3-70b-8192", "mixtral-8x7b-32768"];
+    const groqModels = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"];
     for (const groqModel of groqModels) {
       try {
         const bodyPayload: any = {
