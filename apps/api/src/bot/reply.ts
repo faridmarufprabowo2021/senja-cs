@@ -791,6 +791,8 @@ export async function sendBotMessage(
 
   let waMessageId: string | undefined;
   let rawProto: string | undefined;
+  let sendError: string | null = null;
+
   if (conversation.waSessionId && conversation.contact.waJid) {
     try {
       const sent = await waManager.sendText(
@@ -803,13 +805,32 @@ export async function sendBotMessage(
 
       // Clear "mengetik..." presence indicator after reply is sent
       void waManager.sendPresence(conversation.waSessionId, conversation.contact.waJid, "paused");
+    } catch (err) {
+      console.warn("sendBotMessage WA initial send error, retrying in 1s...", err);
+      sendError = err instanceof Error ? err.message : String(err);
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        const retrySent = await waManager.sendText(
+          conversation.waSessionId,
+          conversation.contact.waJid,
+          cleanedText || text,
+        );
+        waMessageId = retrySent?.key?.id ?? undefined;
+        rawProto = (retrySent as any)?.rawProto ?? (retrySent?.message ? JSON.stringify(retrySent.message) : undefined);
+        sendError = null;
+        void waManager.sendPresence(conversation.waSessionId, conversation.contact.waJid, "paused");
+      } catch (retryErr) {
+        sendError = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        console.error("sendBotMessage WA retry failed permanently:", retryErr);
+      }
+    }
 
-      // Auto-send product media if product image exists
-      const products = await prisma.product.findMany({
-        where: { tenantId: conversation.tenantId, imageUrl: { not: null } },
-        take: 10,
-      });
-      const matchedProd = products.find((p) => p.imageUrl && text.toLowerCase().includes(p.name.toLowerCase()));
+    // Auto-send product media if product image exists
+    const products = await prisma.product.findMany({
+      where: { tenantId: conversation.tenantId, imageUrl: { not: null } },
+      take: 10,
+    });
+    const matchedProd = products.find((p) => p.imageUrl && text.toLowerCase().includes(p.name.toLowerCase()));
 
       // Auto-send Knowledge Base Image Media if Knowledge Image exists
       const kbImages = await prisma.knowledgeDocument.findMany({
@@ -935,10 +956,7 @@ export async function sendBotMessage(
           console.warn("Video auto-send error:", err);
         }
       }
-    } catch (err) {
-      console.warn("bot WA send failed (still saving message)", err);
     }
-  }
 
   const now = new Date();
   const message = await prisma.message.create({
