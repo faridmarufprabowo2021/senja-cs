@@ -238,8 +238,24 @@ function extractiveAnswer(messages: ChatMessage[]): string {
   const cleaned = firstChunk
     .replace(/^\[\d+\][^\n]*\n/, "")
     .trim();
+  
+  // Format markdown table lines into clean bullet points
+  const lines = cleaned.split("\n");
+  const formattedLines: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      const cells = trimmed.split("|").map((c) => c.trim()).filter(Boolean);
+      if (cells.length >= 2 && !cells[0].includes("---") && !cells[0].toLowerCase().includes("dokter") && !cells[0].toLowerCase().includes("nama")) {
+        formattedLines.push(`• ${cells.join(" — ")}`);
+      }
+    } else if (trimmed) {
+      formattedLines.push(trimmed);
+    }
+  }
+  const result = formattedLines.join("\n");
   const short =
-    cleaned.length > 400 ? cleaned.slice(0, 380).trim() + "…" : cleaned;
+    result.length > 450 ? result.slice(0, 430).trim() + "…" : result;
 
   return short;
 }
