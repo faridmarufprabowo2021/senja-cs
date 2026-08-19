@@ -271,13 +271,41 @@ export class BaileysDriver implements IWaDriver {
     });
   }
 
+  private async resolvePhoneJid(jid: string): Promise<string> {
+    if (!jid) return jid;
+    if (jid.endsWith("@s.whatsapp.net")) return jid;
+    if (jid.endsWith("@g.us")) return jid;
+
+    if (jid.endsWith("@lid")) {
+      const contact = await prisma.contact.findFirst({
+        where: {
+          tenantId: this.tenantId,
+          waJid: jid,
+        },
+      });
+      if (contact?.phone) {
+        const cleaned = contact.phone.replace(/\D/g, "");
+        if (cleaned.length >= 7) {
+          const phoneJid = `${cleaned}@s.whatsapp.net`;
+          await prisma.contact.update({
+            where: { id: contact.id },
+            data: { waJid: phoneJid },
+          }).catch(() => null);
+          return phoneJid;
+        }
+      }
+    }
+    return jid;
+  }
+
   async sendText(jid: string, text: string) {
     if (!this.socket) {
       throw new Error(
         "WhatsApp (Baileys) belum terhubung. Buka menu Channels → Hubungkan / scan QR, lalu coba lagi.",
       );
     }
-    return this.socket.sendMessage(jid, { text });
+    const targetJid = await this.resolvePhoneJid(jid);
+    return this.socket.sendMessage(targetJid, { text });
   }
 
   async sendMedia(jid: string, opts: WaSendMediaOptions) {
@@ -286,21 +314,22 @@ export class BaileysDriver implements IWaDriver {
         "WhatsApp (Baileys) belum terhubung. Buka menu Channels → Hubungkan / scan QR, lalu coba lagi.",
       );
     }
+    const targetJid = await this.resolvePhoneJid(jid);
     if (opts.isVideo) {
-      return this.socket.sendMessage(jid, {
+      return this.socket.sendMessage(targetJid, {
         video: opts.buffer,
         caption: opts.caption,
         mimetype: opts.mimetype || "video/mp4",
       });
     }
     if (opts.isImage) {
-      return this.socket.sendMessage(jid, {
+      return this.socket.sendMessage(targetJid, {
         image: opts.buffer,
         caption: opts.caption,
         mimetype: opts.mimetype || "image/jpeg",
       });
     }
-    return this.socket.sendMessage(jid, {
+    return this.socket.sendMessage(targetJid, {
       document: opts.buffer,
       fileName: opts.fileName,
       mimetype: opts.mimetype || "application/octet-stream",
