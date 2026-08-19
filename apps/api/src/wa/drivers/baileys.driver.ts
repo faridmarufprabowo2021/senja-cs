@@ -84,6 +84,27 @@ export class BaileysDriver implements IWaDriver {
     });
   }
 
+  public clearContactSignalSessions(phoneOrJid: string) {
+    try {
+      const cleanPhone = phoneOrJid.replace(/\D/g, "");
+      if (!cleanPhone || cleanPhone.length < 5) return;
+      const dir = this.authDir();
+      if (!fs.existsSync(dir)) return;
+      const files = fs.readdirSync(dir);
+      for (const file of files) {
+        if (file.includes(cleanPhone)) {
+          try {
+            fs.unlinkSync(path.join(dir, file));
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[wa-baileys] clearContactSignalSessions error:", err);
+    }
+  }
+
   async start(opts?: { forceQr?: boolean }) {
     if (opts?.forceQr) {
       await this.resetAuth();
@@ -141,6 +162,9 @@ export class BaileysDriver implements IWaDriver {
           }
         } catch (err) {
           console.warn("[wa-baileys] getMessage retry lookup error:", err);
+        }
+        if (key?.remoteJid) {
+          this.clearContactSignalSessions(key.remoteJid);
         }
         return undefined;
       },
