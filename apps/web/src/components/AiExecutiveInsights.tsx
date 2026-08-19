@@ -25,6 +25,7 @@ export type ExecutiveInsightsData = {
     percentage: number;
     count: number;
   }>;
+  insightsUpdatedAt?: string;
 };
 
 interface AiExecutiveInsightsProps {
@@ -79,6 +80,13 @@ export function AiExecutiveInsights({
     ],
   };
 
+  const formattedUpdatedAt = insights.insightsUpdatedAt
+    ? new Date(insights.insightsUpdatedAt).toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
   return (
     <Card className="p-6 space-y-6 overflow-hidden border-purple-100/80 shadow-xs bg-gradient-to-b from-white via-purple-50/20 to-white">
       {/* 1. Header Bar */}
@@ -99,6 +107,11 @@ export function AiExecutiveInsights({
               <Calendar className="h-3.5 w-3.5" />
               {insights.dateRangeStr}
             </span>
+            {formattedUpdatedAt && (
+              <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200/60 font-semibold">
+                ⚡ Cache DB Terkini ({formattedUpdatedAt} WIB)
+              </span>
+            )}
           </div>
         </div>
 
@@ -109,7 +122,7 @@ export function AiExecutiveInsights({
           className="border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 shadow-2xs font-semibold text-xs rounded-xl"
         >
           <RefreshCw className={`mr-2 h-4 w-4 ${regenerating ? "animate-spin text-purple-600" : ""}`} />
-          {regenerating ? "Menganalisis..." : "Regenerate Analysis"}
+          {regenerating ? "Menganalisis..." : "Perbarui Analisis AI"}
         </Button>
       </div>
 

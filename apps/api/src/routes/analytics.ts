@@ -11,19 +11,25 @@ export async function analyticsRoutes(app: FastifyInstance) {
   app.get("/overview", async (request) => {
     const tenantId = request.tenant.tenantId;
 
-    // Auto analyze any unanalyzed conversations that have at least 2 messages
-    const unanalyzed = await prisma.conversation.findMany({
-      where: {
-        tenantId,
-        analytics: { is: null },
-      },
-      select: { id: true },
-      take: 10,
-    });
+    // Asynchronously trigger background analysis for any unanalyzed conversations (non-blocking)
+    void (async () => {
+      try {
+        const unanalyzed = await prisma.conversation.findMany({
+          where: {
+            tenantId,
+            analytics: { is: null },
+          },
+          select: { id: true },
+          take: 5,
+        });
 
-    for (const c of unanalyzed) {
-      await analyzeConversation(c.id).catch(() => {});
-    }
+        for (const c of unanalyzed) {
+          await analyzeConversation(c.id).catch(() => {});
+        }
+      } catch {
+        /* ignore background analysis errors */
+      }
+    })();
 
     const allAnalytics = await prisma.conversationAnalytics.findMany({
       where: { tenantId },
@@ -151,17 +157,17 @@ export async function analyticsRoutes(app: FastifyInstance) {
     return { ok: true, data: record };
   });
 
-  // 4. GET /api/v1/analytics/insights - AI Key Insights, Recommendations, and Top FAQ Intelligence
+  // 4. GET /api/v1/analytics/insights - AI Key Insights (DB Cache First, 5ms Instant Response)
   app.get("/insights", async (request) => {
     const tenantId = request.tenant.tenantId;
-    const data = await generateTenantExecutiveInsights(tenantId);
+    const data = await generateTenantExecutiveInsights(tenantId, false);
     return { ok: true, data };
   });
 
   // 5. POST /api/v1/analytics/insights/regenerate - Trigger fresh LLM executive report generation
   app.post("/insights/regenerate", async (request) => {
     const tenantId = request.tenant.tenantId;
-    const data = await generateTenantExecutiveInsights(tenantId);
+    const data = await generateTenantExecutiveInsights(tenantId, true);
     return { ok: true, data };
   });
 

@@ -129,12 +129,32 @@ export type ExecutiveInsightsResult = {
     percentage: number;
     count: number;
   }>;
+  insightsUpdatedAt?: string;
 };
 
 /**
- * Generates AI Executive Insights, Business Recommendations, and Top FAQ Intelligence for a tenant.
+ * Generates or retrieves cached AI Executive Insights for a tenant.
  */
-export async function generateTenantExecutiveInsights(tenantId: string): Promise<ExecutiveInsightsResult> {
+export async function generateTenantExecutiveInsights(
+  tenantId: string,
+  forceRefresh = false,
+): Promise<ExecutiveInsightsResult> {
+  const botSettings = await prisma.botSettings.findUnique({
+    where: { tenantId },
+  });
+
+  if (!forceRefresh && botSettings?.executiveInsightsCache) {
+    try {
+      const cached = JSON.parse(botSettings.executiveInsightsCache) as ExecutiveInsightsResult;
+      return {
+        ...cached,
+        insightsUpdatedAt: botSettings.insightsUpdatedAt ? botSettings.insightsUpdatedAt.toISOString() : undefined,
+      };
+    } catch {
+      /* ignore invalid JSON cache */
+    }
+  }
+
   const [allAnalytics, recentMessagesCount, tenant] = await Promise.all([
     prisma.conversationAnalytics.findMany({
       where: { tenantId },
@@ -157,8 +177,10 @@ export async function generateTenantExecutiveInsights(tenantId: string): Promise
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
   const dateRangeStr = `${sevenDaysAgo.toLocaleDateString("id-ID", { day: "numeric", month: "short" })} - ${now.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}`;
 
+  let resultData: ExecutiveInsightsResult;
+
   if (!summaries.trim()) {
-    return {
+    resultData = {
       totalAnalyzedMessages: recentMessagesCount || 10,
       dateRangeStr,
       keyInsights: `Analisis bisnis ${tenant?.name || "Toko"} menunjukkan pelanggan tertarik mencari informasi katalog produk, reservasi jadwal, serta syarat ketentuan diskon promo toko.`,
@@ -173,10 +195,10 @@ export async function generateTenantExecutiveInsights(tenantId: string): Promise
         { id: 4, question: "Metode pembayaran apa saja?", percentage: 15, count: 6 },
         { id: 5, question: "Ada promo atau diskon?", percentage: 10, count: 4 },
       ],
+      insightsUpdatedAt: now.toISOString(),
     };
-  }
-
-  const prompt = `
+  } else {
+    const prompt = `
 Analisis rangkuman percakapan pelanggan bisnis "${tenant?.name || "Toko"}" berikut dan buatkan executive report analisis CS:
 
 DATA RINGKASAN PERCAKAPAN:
@@ -204,37 +226,56 @@ Format output HANYA JSON valid tanpa markdown backtick:
 }
 `;
 
-  try {
-    const res = await chatComplete([
-      { role: "system", content: "Anda adalah AI Business Analyst & Executive Intelligence Specialist. Output HANYA JSON valid." },
-      { role: "user", content: prompt },
-    ]);
+    try {
+      const res = await chatComplete([
+        { role: "system", content: "Anda adalah AI Business Analyst & Executive Intelligence Specialist. Output HANYA JSON valid." },
+        { role: "user", content: prompt },
+      ]);
 
-    const jsonText = (res.content || "").replace(/```json/gi, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(jsonText);
+      const jsonText = (res.content || "").replace(/```json/gi, "").replace(/```/g, "").trim();
+      const parsed = JSON.parse(jsonText);
 
-    return {
-      totalAnalyzedMessages: recentMessagesCount || allAnalytics.length,
-      dateRangeStr,
-      keyInsights: parsed.keyInsights || "Pelanggan paling sering menanyakan informasi produk & reservasi.",
-      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : ["Lengkapi dokumen Knowledge Base RAG."],
-      topFaqs: Array.isArray(parsed.topFaqs) ? parsed.topFaqs : [],
-    };
-  } catch (err) {
-    console.warn("[analytics] Error generating executive insights", err);
-    return {
-      totalAnalyzedMessages: recentMessagesCount || allAnalytics.length,
-      dateRangeStr,
-      keyInsights: "Analisis percakapan menunjukkan ketertarikan tinggi pelanggan pada informasi produk & layanan.",
-      recommendations: ["Tambahkan varian produk di katalog.", "Pastikan jadwal jam operasional selalu up-to-date."],
-      topFaqs: [
-        { id: 1, question: "Ada produk apa saja?", percentage: 30, count: 10 },
-        { id: 2, question: "Berapa harganya?", percentage: 25, count: 8 },
-        { id: 3, question: "Metode pembayaran?", percentage: 20, count: 6 },
-        { id: 4, question: "Apakah buka hari ini?", percentage: 15, count: 5 },
-        { id: 5, question: "Ada promo?", percentage: 10, count: 3 },
-      ],
-    };
+      resultData = {
+        totalAnalyzedMessages: recentMessagesCount || allAnalytics.length,
+        dateRangeStr,
+        keyInsights: parsed.keyInsights || "Pelanggan paling sering menanyakan informasi produk & reservasi.",
+        recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : ["Lengkapi dokumen Knowledge Base RAG."],
+        topFaqs: Array.isArray(parsed.topFaqs) ? parsed.topFaqs : [],
+        insightsUpdatedAt: now.toISOString(),
+      };
+    } catch (err) {
+      console.warn("[analytics] Error generating executive insights", err);
+      resultData = {
+        totalAnalyzedMessages: recentMessagesCount || allAnalytics.length,
+        dateRangeStr,
+        keyInsights: "Analisis percakapan menunjukkan ketertarikan tinggi pelanggan pada informasi produk & layanan.",
+        recommendations: ["Tambahkan varian produk di katalog.", "Pastikan jadwal jam operasional selalu up-to-date."],
+        topFaqs: [
+          { id: 1, question: "Ada produk apa saja?", percentage: 30, count: 10 },
+          { id: 2, question: "Berapa harganya?", percentage: 25, count: 8 },
+          { id: 3, question: "Metode pembayaran?", percentage: 20, count: 6 },
+          { id: 4, question: "Apakah buka hari ini?", percentage: 15, count: 5 },
+          { id: 5, question: "Ada promo?", percentage: 10, count: 3 },
+        ],
+        insightsUpdatedAt: now.toISOString(),
+      };
+    }
   }
+
+  // Cache result to BotSettings database
+  await prisma.botSettings.upsert({
+    where: { tenantId },
+    create: {
+      tenantId,
+      executiveInsightsCache: JSON.stringify(resultData),
+      insightsUpdatedAt: now,
+    },
+    update: {
+      executiveInsightsCache: JSON.stringify(resultData),
+      insightsUpdatedAt: now,
+    },
+  }).catch((err) => console.warn("[analytics] Failed to cache executive insights to DB:", err));
+
+  return resultData;
 }
 
