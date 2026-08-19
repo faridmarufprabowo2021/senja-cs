@@ -1160,80 +1160,11 @@ export function InboxView() {
         )}
       </section>
 
-      <aside className="hidden w-[250px] shrink-0 flex-col overflow-y-auto border-l border-[var(--color-line)] bg-[var(--color-paper-2)] p-4 xl:flex 2xl:w-[280px]">
-        {active ? (
-          <>
-            <div className="mb-4 text-center">
-              <div
-                className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full text-lg font-semibold text-white"
-                style={{ background: avatarGradient(active.contact?.avatarHue ?? 200) }}
-              >
-                {initials(active.contact?.name ?? "Pelanggan")}
-              </div>
-              <h3 className="font-medium">{active.contact?.name ?? "Pelanggan"}</h3>
-              <p className="text-xs text-[var(--color-muted)]">
-                {active.contact?.phone ?? ""}
-              </p>
-            </div>
-            <div className="space-y-3 text-sm">
-              <div className="rounded-xl border border-[var(--color-line)] bg-white p-3">
-                <div className="mb-2 text-xs uppercase tracking-wider text-[var(--color-faint)]">
-                  Status
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={statusTone(active.status)}>
-                    {STATUS_LABEL[active.status]}
-                  </Badge>
-                  <Badge tone={active.mode === "bot" ? "bot" : "human"}>
-                    {active.mode === "bot" ? "Mode bot" : "Mode human"}
-                  </Badge>
-                </div>
-              </div>
-              <div className="rounded-xl border border-[var(--color-line)] bg-white p-3">
-                <div className="mb-2 text-xs uppercase tracking-wider text-[var(--color-faint)]">
-                  Agent
-                </div>
-                <div className="flex items-center gap-2 text-[var(--color-text-soft)]">
-                  <StatusDot
-                    status={active.assignedName ? "online" : "offline"}
-                  />
-                  {active.assignedName ?? "Belum di-assign"}
-                </div>
-              </div>
-              <div className="rounded-xl border border-[var(--color-line)] bg-white p-3">
-                <div className="mb-2 text-xs uppercase tracking-wider text-[var(--color-faint)]">
-                  Label
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {PRESET_TAGS.map((tag) => {
-                    const on = (active.tags ?? []).includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => void toggleTag(tag)}
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-[11px] font-medium transition",
-                          on
-                            ? "bg-[var(--color-accent)] text-white"
-                            : "bg-[var(--color-paper-2)] text-[var(--color-muted)] hover:bg-[var(--color-paper-3)]",
-                        )}
-                      >
-                        {tag}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </>
-        ) : null}
-      </aside>
-
-      {activeId ? (
+      {active ? (
         <ChatInsightSidebar
-          conversationId={activeId}
+          conversation={active}
           onApplyDraft={(draftText) => setDraft(draftText)}
+          onToggleTag={(tag) => void toggleTag(tag)}
         />
       ) : null}
 

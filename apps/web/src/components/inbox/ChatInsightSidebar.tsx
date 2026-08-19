@@ -17,9 +17,17 @@ import {
   Bot,
   Send,
   RefreshCw,
+  User,
+  Tag as TagIcon,
+  ShieldAlert,
 } from "lucide-react";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, StatusDot } from "@/components/ui";
 import { api, getSession } from "@/lib/api";
+import { cn, initials, avatarGradient } from "@/lib/utils";
+import type { Conversation, ConversationStatus } from "@cs/shared";
+import { STATUS_LABEL } from "@cs/shared";
+
+const PRESET_TAGS = ["baru", "hot", "komplain", "order", "followup"];
 
 type SlaMetrics = {
   totalMessages: number;
@@ -48,18 +56,29 @@ type ChatInsightResult = {
 };
 
 interface ChatInsightSidebarProps {
-  conversationId: string;
+  conversation: Conversation;
   onApplyDraft?: (draftText: string) => void;
+  onToggleTag?: (tag: string) => void;
+}
+
+function statusTone(status: ConversationStatus) {
+  if (status === "waiting_agent") return "warn" as const;
+  if (status === "bot_active") return "bot" as const;
+  if (status === "assigned") return "human" as const;
+  if (status === "resolved") return "success" as const;
+  return "neutral" as const;
 }
 
 export function ChatInsightSidebar({
-  conversationId,
+  conversation,
   onApplyDraft,
+  onToggleTag,
 }: ChatInsightSidebarProps) {
   const [data, setData] = useState<ChatInsightResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [userRole, setUserRole] = useState<string>("agent");
+  const [activeTab, setActiveTab] = useState<"ai" | "contact">("ai");
 
   // Accordion Section States
   const [openSla, setOpenSla] = useState(true);
@@ -80,11 +99,11 @@ export function ChatInsightSidebar({
   }, []);
 
   const loadInsights = async () => {
-    if (!conversationId) return;
+    if (!conversation?.id) return;
     setLoading(true);
     try {
       const res = await api<ChatInsightResult>(
-        `/conversations/${conversationId}/insights`,
+        `/conversations/${conversation.id}/insights`,
       );
       setData(res);
     } catch (err) {
@@ -96,7 +115,7 @@ export function ChatInsightSidebar({
 
   useEffect(() => {
     void loadInsights();
-  }, [conversationId]);
+  }, [conversation?.id]);
 
   const handleCopy = (text: string) => {
     if (!text) return;
@@ -105,261 +124,428 @@ export function ChatInsightSidebar({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const isOwnerOrManager = userRole === "owner" || userRole === "admin" || userRole === "manager";
+  const isOwnerOrManager =
+    userRole === "owner" || userRole === "admin" || userRole === "manager";
 
-  if (!conversationId) return null;
+  if (!conversation) return null;
 
   return (
-    <div className="w-80 border-l border-[var(--color-line)] bg-slate-50/50 flex flex-col h-full overflow-y-auto p-3.5 space-y-3.5 shrink-0 select-none">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-          <Sparkles className="h-4 w-4 text-[var(--color-accent)]" />
-          <span>Wawasan Chat 360°</span>
-        </div>
+    <aside className="w-80 border-l border-[var(--color-line)] bg-slate-50/70 flex flex-col h-full overflow-y-auto p-3.5 space-y-3 shrink-0 select-none">
+      {/* Top Tab Switcher */}
+      <div className="grid grid-cols-2 p-1 bg-slate-200/60 rounded-xl text-xs font-semibold text-slate-600 shrink-0">
         <button
-          onClick={() => void loadInsights()}
-          disabled={loading}
-          className="p-1 hover:bg-slate-200/60 rounded-lg transition text-slate-500 hover:text-slate-800"
-          title="Refresh Wawasan"
+          type="button"
+          onClick={() => setActiveTab("ai")}
+          className={cn(
+            "flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all",
+            activeTab === "ai"
+              ? "bg-white text-slate-900 shadow-2xs font-bold"
+              : "hover:text-slate-900",
+          )}
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+          <span>Wawasan AI</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("contact")}
+          className={cn(
+            "flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all",
+            activeTab === "contact"
+              ? "bg-white text-slate-900 shadow-2xs font-bold"
+              : "hover:text-slate-900",
+          )}
+        >
+          <User className="h-3.5 w-3.5 text-blue-600" />
+          <span>Kontak &amp; Label</span>
         </button>
       </div>
 
-      {loading && !data ? (
-        <div className="py-8 text-center text-xs text-slate-500 font-medium animate-pulse space-y-2">
-          <Bot className="h-6 w-6 mx-auto text-slate-400" />
-          <p>Menganalisis SLA &amp; profil pelanggan...</p>
-        </div>
-      ) : data ? (
+      {activeTab === "ai" ? (
         <>
-          {/* 1. SLA & SOP Compliance Card (Owner & Manager Only) */}
-          {isOwnerOrManager && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs space-y-2.5">
-              <button
-                type="button"
-                onClick={() => setOpenSla(!openSla)}
-                className="w-full flex items-center justify-between text-xs font-bold text-slate-900"
-              >
-                <div className="flex items-center gap-1.5">
-                  <Clock className="h-4 w-4 text-blue-600" />
-                  <span>SOP Response Time SLA</span>
-                </div>
-                {openSla ? <ChevronUp className="h-3.5 w-3.5 text-slate-400" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
-              </button>
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+              <Sparkles className="h-4 w-4 text-[var(--color-accent)]" />
+              <span>Analisis Percakapan Real-Time</span>
+            </div>
+            <button
+              onClick={() => void loadInsights()}
+              disabled={loading}
+              className="p-1 hover:bg-slate-200/60 rounded-lg transition text-slate-500 hover:text-slate-800"
+              title="Refresh Wawasan"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+              />
+            </button>
+          </div>
 
-              {openSla && (
-                <div className="space-y-2 text-xs pt-1 border-t border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500 text-[11px]">Status SLA CS:</span>
-                    <Badge
-                      tone={
-                        data.slaMetrics.slaStatus === "green"
-                          ? "success"
-                          : data.slaMetrics.slaStatus === "yellow"
-                          ? "warn"
-                          : "danger"
-                      }
-                      className="text-[10px] font-semibold"
-                    >
-                      {data.slaMetrics.slaLabel}
-                    </Badge>
-                  </div>
+          {loading && !data ? (
+            <div className="py-8 text-center text-xs text-slate-500 font-medium animate-pulse space-y-2">
+              <Bot className="h-6 w-6 mx-auto text-slate-400" />
+              <p>Menganalisis SLA &amp; profil pelanggan...</p>
+            </div>
+          ) : data ? (
+            <>
+              {/* 1. SLA & SOP Compliance Card (Owner & Manager Only) */}
+              {isOwnerOrManager && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs space-y-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setOpenSla(!openSla)}
+                    className="w-full flex items-center justify-between text-xs font-bold text-slate-900"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 text-blue-600" />
+                      <span>SOP Response Time SLA</span>
+                    </div>
+                    {openSla ? (
+                      <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    )}
+                  </button>
 
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div className="rounded-xl bg-slate-50 p-2 border border-slate-100">
-                      <span className="block text-[10px] text-slate-400 font-medium">Median Respon CS</span>
-                      <span className="text-xs font-black text-slate-800">
-                        {data.slaMetrics.medianResponseTimeFormatted}
-                      </span>
+                  {openSla && (
+                    <div className="space-y-2 text-xs pt-1 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 text-[11px]">
+                          Status SLA CS:
+                        </span>
+                        <Badge
+                          tone={
+                            data.slaMetrics.slaStatus === "green"
+                              ? "success"
+                              : data.slaMetrics.slaStatus === "yellow"
+                              ? "warn"
+                              : "danger"
+                          }
+                          className="text-[10px] font-semibold"
+                        >
+                          {data.slaMetrics.slaLabel}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div className="rounded-xl bg-slate-50 p-2 border border-slate-100">
+                          <span className="block text-[10px] text-slate-400 font-medium">
+                            Median Respon CS
+                          </span>
+                          <span className="text-xs font-black text-slate-800">
+                            {data.slaMetrics.medianResponseTimeFormatted}
+                          </span>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-2 border border-slate-100">
+                          <span className="block text-[10px] text-slate-400 font-medium">
+                            Pesan Admin / AI
+                          </span>
+                          <span className="text-xs font-black text-slate-800">
+                            {data.slaMetrics.agentMessageCount} /{" "}
+                            {data.slaMetrics.botMessageCount}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="rounded-xl bg-slate-50 p-2 border border-slate-100">
-                      <span className="block text-[10px] text-slate-400 font-medium">Pesan Admin / AI</span>
-                      <span className="text-xs font-black text-slate-800">
-                        {data.slaMetrics.agentMessageCount} / {data.slaMetrics.botMessageCount}
-                      </span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          {/* 2. Buyer Profiling 360° Card */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs space-y-2.5">
-            <button
-              type="button"
-              onClick={() => setOpenPersona(!openPersona)}
-              className="w-full flex items-center justify-between text-xs font-bold text-slate-900"
-            >
-              <div className="flex items-center gap-1.5">
-                <Flame className="h-4 w-4 text-amber-500" />
-                <span>Profil &amp; Niat Beli (Intent)</span>
-              </div>
-              {openPersona ? <ChevronUp className="h-3.5 w-3.5 text-slate-400" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
-            </button>
-
-            {openPersona && (
-              <div className="space-y-2.5 text-xs pt-1 border-t border-slate-100">
-                {/* Intent Progress Bar */}
-                <div>
-                  <div className="flex justify-between text-[11px] mb-1">
-                    <span className="font-semibold text-slate-700">Buying Intent:</span>
-                    <span className="font-mono font-bold text-blue-700">
-                      {data.analyticsInsight.intentScore}% ({data.analyticsInsight.funnelStage})
-                    </span>
+              {/* 2. Buyer Profiling 360° Card */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => setOpenPersona(!openPersona)}
+                  className="w-full flex items-center justify-between text-xs font-bold text-slate-900"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Flame className="h-4 w-4 text-amber-500" />
+                    <span>Profil &amp; Niat Beli (Intent)</span>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500"
-                      style={{ width: `${Math.min(100, Math.max(10, data.analyticsInsight.intentScore))}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Persona Tags */}
-                <div>
-                  <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">
-                    Karakter Buyer:
-                  </span>
-                  <div className="flex flex-wrap gap-1">
-                    {data.analyticsInsight.personaTags.map((tag, i) => (
-                      <span
-                        key={i}
-                        className="inline-flex items-center gap-1 rounded-md bg-purple-50 border border-purple-200 text-purple-700 px-2 py-0.5 text-[10px] font-semibold"
-                      >
-                        🏷️ {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Desires */}
-                {data.analyticsInsight.desires.length > 0 && (
-                  <div>
-                    <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">
-                      Kebutuhan / Keinginan:
-                    </span>
-                    <ul className="space-y-1">
-                      {data.analyticsInsight.desires.map((d, i) => (
-                        <li key={i} className="text-[11px] text-slate-700 flex items-start gap-1.5">
-                          <span className="text-emerald-500 font-bold">•</span>
-                          <span>{d}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* 3. Unanswered Questions & Objections Card */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs space-y-2.5">
-            <button
-              type="button"
-              onClick={() => setOpenUnanswered(!openUnanswered)}
-              className="w-full flex items-center justify-between text-xs font-bold text-slate-900"
-            >
-              <div className="flex items-center gap-1.5">
-                <AlertTriangle className="h-4 w-4 text-rose-500" />
-                <span>Pertanyaan &amp; Keberatan</span>
-              </div>
-              {openUnanswered ? <ChevronUp className="h-3.5 w-3.5 text-slate-400" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
-            </button>
-
-            {openUnanswered && (
-              <div className="space-y-2.5 text-xs pt-1 border-t border-slate-100">
-                {/* Unanswered Questions */}
-                <div>
-                  <span className="block text-[10px] text-rose-600 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
-                    <span>⚠️ Belum Dijawab CS:</span>
-                  </span>
-                  {data.analyticsInsight.unansweredQuestions.length > 0 ? (
-                    <ul className="space-y-1">
-                      {data.analyticsInsight.unansweredQuestions.map((q, i) => (
-                        <li key={i} className="rounded-lg bg-rose-50 border border-rose-200 p-2 text-[11px] font-medium text-rose-900 leading-relaxed">
-                          &quot;{q}&quot;
-                        </li>
-                      ))}
-                    </ul>
+                  {openPersona ? (
+                    <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
                   ) : (
-                    <p className="text-[11px] text-emerald-600 font-medium">
-                      ✅ Semua pertanyaan terdeteksi sudah dijawab!
-                    </p>
+                    <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                   )}
-                </div>
+                </button>
 
-                {/* Objections */}
-                {data.analyticsInsight.objections.length > 0 && (
-                  <div>
-                    <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">
-                      Keraguan / Keberatan:
-                    </span>
-                    <ul className="space-y-1">
-                      {data.analyticsInsight.objections.map((obj, i) => (
-                        <li key={i} className="text-[11px] text-slate-700 flex items-start gap-1.5">
-                          <span className="text-amber-500">💔</span>
-                          <span>{obj}</span>
-                        </li>
-                      ))}
-                    </ul>
+                {openPersona && (
+                  <div className="space-y-2.5 text-xs pt-1 border-t border-slate-100">
+                    {/* Intent Progress Bar */}
+                    <div>
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="font-semibold text-slate-700">
+                          Buying Intent:
+                        </span>
+                        <span className="font-mono font-bold text-blue-700">
+                          {data.analyticsInsight.intentScore}% (
+                          {data.analyticsInsight.funnelStage})
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.max(10, data.analyticsInsight.intentScore),
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Persona Tags */}
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">
+                        Karakter Buyer:
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {data.analyticsInsight.personaTags.map((tag, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 rounded-md bg-purple-50 border border-purple-200 text-purple-700 px-2 py-0.5 text-[10px] font-semibold"
+                          >
+                            🏷️ {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Desires */}
+                    {data.analyticsInsight.desires.length > 0 && (
+                      <div>
+                        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">
+                          Kebutuhan / Keinginan:
+                        </span>
+                        <ul className="space-y-1">
+                          {data.analyticsInsight.desires.map((d, i) => (
+                            <li
+                              key={i}
+                              className="text-[11px] text-slate-700 flex items-start gap-1.5"
+                            >
+                              <span className="text-emerald-500 font-bold">
+                                •
+                              </span>
+                              <span>{d}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* 4. Smart Reply Assistant Card */}
-          <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-3 shadow-2xs space-y-2.5">
-            <button
-              type="button"
-              onClick={() => setOpenSmartReply(!openSmartReply)}
-              className="w-full flex items-center justify-between text-xs font-bold text-blue-950"
-            >
-              <div className="flex items-center gap-1.5">
-                <Zap className="h-4 w-4 text-blue-600 fill-current" />
-                <span>Rekomendasi Balasan AI</span>
-              </div>
-              {openSmartReply ? <ChevronUp className="h-3.5 w-3.5 text-blue-400" /> : <ChevronDown className="h-3.5 w-3.5 text-blue-400" />}
-            </button>
-
-            {openSmartReply && (
-              <div className="space-y-2 text-xs pt-1 border-t border-blue-100">
-                <div className="rounded-xl bg-white border border-blue-200 p-2.5 text-[11px] font-sans text-slate-800 leading-relaxed shadow-2xs">
-                  {data.analyticsInsight.smartReplyDraft}
-                </div>
-
-                <div className="flex items-center justify-end gap-1.5 pt-1">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => handleCopy(data.analyticsInsight.smartReplyDraft)}
-                    className="h-7 text-[10px] font-bold gap-1 bg-white hover:bg-slate-100"
-                  >
-                    {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-                    <span>{copied ? "Tersalin!" : "Salin Teks"}</span>
-                  </Button>
-
-                  {onApplyDraft && (
-                    <Button
-                      size="sm"
-                      onClick={() => onApplyDraft(data.analyticsInsight.smartReplyDraft)}
-                      className="h-7 text-[10px] font-bold gap-1 bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      <Send className="h-3 w-3" />
-                      <span>🚀 Isi ke Chat</span>
-                    </Button>
+              {/* 3. Unanswered Questions & Objections Card */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xs space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => setOpenUnanswered(!openUnanswered)}
+                  className="w-full flex items-center justify-between text-xs font-bold text-slate-900"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4 text-rose-500" />
+                    <span>Pertanyaan &amp; Keberatan</span>
+                  </div>
+                  {openUnanswered ? (
+                    <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                   )}
-                </div>
+                </button>
+
+                {openUnanswered && (
+                  <div className="space-y-2.5 text-xs pt-1 border-t border-slate-100">
+                    {/* Unanswered Questions */}
+                    <div>
+                      <span className="block text-[10px] text-rose-600 font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <span>⚠️ Belum Dijawab CS:</span>
+                      </span>
+                      {data.analyticsInsight.unansweredQuestions.length > 0 ? (
+                        <ul className="space-y-1">
+                          {data.analyticsInsight.unansweredQuestions.map(
+                            (q, i) => (
+                              <li
+                                key={i}
+                                className="rounded-lg bg-rose-50 border border-rose-200 p-2 text-[11px] font-medium text-rose-900 leading-relaxed"
+                              >
+                                &quot;{q}&quot;
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      ) : (
+                        <p className="text-[11px] text-emerald-600 font-medium">
+                          ✅ Semua pertanyaan terdeteksi sudah dijawab!
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Objections */}
+                    {data.analyticsInsight.objections.length > 0 && (
+                      <div>
+                        <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">
+                          Keraguan / Keberatan:
+                        </span>
+                        <ul className="space-y-1">
+                          {data.analyticsInsight.objections.map((obj, i) => (
+                            <li
+                              key={i}
+                              className="text-[11px] text-slate-700 flex items-start gap-1.5"
+                            >
+                              <span className="text-amber-500">💔</span>
+                              <span>{obj}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+
+              {/* 4. Smart Reply Assistant Card */}
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-3 shadow-2xs space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => setOpenSmartReply(!openSmartReply)}
+                  className="w-full flex items-center justify-between text-xs font-bold text-blue-950"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="h-4 w-4 text-blue-600 fill-current" />
+                    <span>Rekomendasi Balasan AI</span>
+                  </div>
+                  {openSmartReply ? (
+                    <ChevronUp className="h-3.5 w-3.5 text-blue-400" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5 text-blue-400" />
+                  )}
+                </button>
+
+                {openSmartReply && (
+                  <div className="space-y-2 text-xs pt-1 border-t border-blue-100">
+                    <div className="rounded-xl bg-white border border-blue-200 p-2.5 text-[11px] font-sans text-slate-800 leading-relaxed shadow-2xs">
+                      {data.analyticsInsight.smartReplyDraft}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1.5 pt-1">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          handleCopy(data.analyticsInsight.smartReplyDraft)
+                        }
+                        className="h-7 text-[10px] font-bold gap-1 bg-white hover:bg-slate-100"
+                      >
+                        {copied ? (
+                          <Check className="h-3 w-3 text-emerald-600" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                        <span>{copied ? "Tersalin!" : "Salin Teks"}</span>
+                      </Button>
+
+                      {onApplyDraft && (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            onApplyDraft(data.analyticsInsight.smartReplyDraft)
+                          }
+                          className="h-7 text-[10px] font-bold gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          <Send className="h-3 w-3" />
+                          <span>🚀 Isi ke Chat</span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="py-4 text-center text-xs text-slate-400">
+              Pilih percakapan untuk melihat analisis.
+            </p>
+          )}
         </>
       ) : (
-        <p className="py-4 text-center text-xs text-slate-400">Pilih percakapan untuk melihat analisis.</p>
+        /* Tab 2: Contact Details & Tags */
+        <div className="space-y-3 text-xs">
+          {/* Contact Card */}
+          <div className="text-center p-3 rounded-2xl bg-white border border-slate-200">
+            <div
+              className={cn(
+                "mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold text-white shadow-xs",
+                avatarGradient(conversation.contact?.name ?? "Pelanggan"),
+              )}
+            >
+              {initials(conversation.contact?.name ?? "Pelanggan")}
+            </div>
+            <h3 className="font-bold text-sm text-slate-900">
+              {conversation.contact?.name ?? "Pelanggan"}
+            </h3>
+            <p className="text-xs text-slate-500 font-mono">
+              {conversation.contact?.phone ?? ""}
+            </p>
+          </div>
+
+          {/* Status */}
+          <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Status Percakapan
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={statusTone(conversation.status)}>
+                {STATUS_LABEL[conversation.status]}
+              </Badge>
+              <Badge tone={conversation.mode === "bot" ? "bot" : "human"}>
+                {conversation.mode === "bot" ? "Mode bot" : "Mode human"}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Assignee */}
+          <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Staf CS (Assignee)
+            </div>
+            <div className="flex items-center gap-2 text-slate-700 font-medium">
+              <StatusDot
+                status={conversation.assignedName ? "online" : "offline"}
+              />
+              <span>{conversation.assignedName ?? "Belum di-assign"}</span>
+            </div>
+          </div>
+
+          {/* Labels / Tags */}
+          <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Label &amp; Tag Chat
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {PRESET_TAGS.map((tag) => {
+                const on = (conversation.tags ?? []).includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => onToggleTag?.(tag)}
+                    className={cn(
+                      "rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
+                      on
+                        ? "bg-[var(--color-accent)] text-white shadow-2xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                    )}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
-    </div>
+    </aside>
   );
 }
