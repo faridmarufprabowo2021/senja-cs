@@ -65,6 +65,20 @@ export async function inboxRoutes(app: FastifyInstance) {
     return mapConversation(row);
   });
 
+  app.get("/conversations/:id/insights", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const tenantId = request.tenant.tenantId;
+
+    const conv = await prisma.conversation.findFirst({
+      where: { id, tenantId },
+    });
+    if (!conv) return reply.code(404).send({ error: "Conversation not found" });
+
+    const { getConversationInsights } = await import("../lib/chat-insight-engine.js");
+    const insights = await getConversationInsights(tenantId, id);
+    return insights;
+  });
+
   app.get("/conversations/:id/messages", async (request, reply) => {
     const { id } = request.params as { id: string };
     const q = request.query as { cursor?: string; limit?: string };

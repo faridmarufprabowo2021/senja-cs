@@ -29,6 +29,7 @@ import {
 import { api, mediaUrl } from "@/lib/api";
 import { useRealtime } from "@/lib/use-realtime";
 import { Badge, Button, Input, StatusDot } from "./ui";
+import { ChatInsightSidebar } from "./inbox/ChatInsightSidebar";
 
 const PRESET_TAGS = ["baru", "hot", "komplain", "order", "followup"];
 
@@ -1228,6 +1229,13 @@ export function InboxView() {
           </>
         ) : null}
       </aside>
+
+      {activeId ? (
+        <ChatInsightSidebar
+          conversationId={activeId}
+          onApplyDraft={(draftText) => setDraft(draftText)}
+        />
+      ) : null}
 
       <AnimatePresence>
         {incomingCall ? (

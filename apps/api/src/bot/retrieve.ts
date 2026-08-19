@@ -78,24 +78,24 @@ export async function retrieveChunks(
   // 1. Try super-fast PostgreSQL pgvector HNSW search (< 15ms)
   try {
     const vectorStr = `[${queryVec.join(",")}]`;
-    const rawResults = await prisma.$queryRawUnsafe<
+    const rawResults = await prisma.$queryRaw<
       Array<{ id: string; documentId: string; fileUrl: string | null; content: string; title: string; vec_score: number }>
-    >(`
+    >`
       SELECT 
         kc.id,
         kc."documentId",
         kd."fileUrl",
         kc.content,
         kd.title,
-        (1 - (kc.embedding_vector <=> '${vectorStr}'::vector)) AS vec_score
+        (1 - (kc.embedding_vector <=> ${vectorStr}::vector)) AS vec_score
       FROM "KnowledgeChunk" kc
       JOIN "KnowledgeDocument" kd ON kc."documentId" = kd.id
-      WHERE kc."tenantId" = '${tenantId}'
+      WHERE kc."tenantId" = ${tenantId}
         AND kd.status = 'ready'
         AND kc.embedding_vector IS NOT NULL
-      ORDER BY kc.embedding_vector <=> '${vectorStr}'::vector
+      ORDER BY kc.embedding_vector <=> ${vectorStr}::vector
       LIMIT 20;
-    `);
+    `;
 
     if (rawResults && rawResults.length > 0) {
       const scored: RetrievedChunk[] = rawResults.map((r) => {
