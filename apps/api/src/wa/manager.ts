@@ -416,10 +416,7 @@ class WaManager {
           where: {
             tenantId,
             waJid: { endsWith: "@s.whatsapp.net" },
-            OR: [
-              ...(pushName ? [{ name: { equals: pushName, mode: "insensitive" } }] : []),
-              { waJid: { endsWith: "@s.whatsapp.net" } },
-            ],
+            ...(pushName ? { name: { equals: pushName, mode: "insensitive" as const } } : {}),
           },
           orderBy: { lastMessageAt: "desc" },
         });
